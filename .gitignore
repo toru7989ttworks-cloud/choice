@@ -4,5 +4,6 @@ backend/*.pyc
 backend/*.db
 backend/*.sqlite
 backend/*.sqlite3
+frontend/node_modules/
 *.env
 .DS_Store
