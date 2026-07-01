@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choice — 好きなサイトだけを、まとめて検索。</title>
+  <meta name="description" content="Choiceは、あなたが選んだサイトだけをまとめてキーワード検索できるiOSアプリです。">
+  <meta property="og:title" content="Choice — 好きなサイトだけを、まとめて検索。">
+  <meta property="og:description" content="あなたが選んだサイトだけをまとめてキーワード検索できるiOSアプリ。">
+  <meta property="og:type" content="website">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #1a1a2e;
+      --navy-light: #252545;
+      --accent: #4a90d9;
+      --accent2: #e27d60;
+      --bg: #f4f7fb;
+      --text: #1a1a2e;
+      --muted: #6b7280;
+      --card: #ffffff;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; overflow-x: hidden; }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(26,26,46,0.96); backdrop-filter: blur(10px);
+      padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { color: #fff; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .nav-cta {
+      background: var(--accent2); color: #fff; border: none;
+      padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 700;
+      cursor: pointer; text-decoration: none; white-space: nowrap;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(160deg, var(--navy) 0%, #0f2040 100%);
+      color: #fff; text-align: center;
+      padding: 160px 24px 100px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 60% 30%, rgba(74,144,217,0.15) 0%, transparent 60%),
+                  radial-gradient(ellipse at 20% 80%, rgba(226,125,96,0.1) 0%, transparent 50%);
+    }
+    .hero-eyebrow {
+      display: inline-block; background: rgba(74,144,217,0.2); color: var(--accent);
+      border: 1px solid rgba(74,144,217,0.4); border-radius: 20px;
+      padding: 4px 14px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 6vw, 58px); font-weight: 900; line-height: 1.15;
+      letter-spacing: -1px; margin-bottom: 20px; position: relative;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: clamp(15px, 2vw, 18px); color: rgba(255,255,255,0.75);
+      max-width: 520px; margin: 0 auto 40px; line-height: 1.8;
+    }
+    .hero-mockup {
+      position: relative; display: inline-block; margin-top: 60px;
+    }
+    .phone-frame {
+      width: 240px; background: #0d0f1e; border-radius: 40px;
+      padding: 16px; box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1);
+      margin: 0 auto;
+    }
+    .phone-screen {
+      background: #f4f7fb; border-radius: 28px; overflow: hidden; height: 420px;
+      display: flex; flex-direction: column;
+    }
+    .mock-header {
+      background: var(--navy); padding: 14px 12px 10px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .mock-header span { color: #fff; font-size: 13px; font-weight: 800; }
+    .mock-body { flex: 1; padding: 10px; overflow: hidden; }
+    .mock-search {
+      background: #fff; border-radius: 10px; padding: 8px 10px;
+      display: flex; align-items: center; gap: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 8px;
+      font-size: 11px; color: #aaa;
+    }
+    .mock-card {
+      background: #fff; border-radius: 10px; padding: 10px;
+      margin-bottom: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .mock-card-site { font-size: 9px; color: var(--accent); font-weight: 700; margin-bottom: 3px; }
+    .mock-card-title { font-size: 11px; font-weight: 700; color: var(--navy); line-height: 1.3; }
+    .mock-tabs {
+      background: #fff; border-top: 1px solid #e8ecf0;
+      display: flex; padding: 8px 0 4px;
+    }
+    .mock-tab { flex: 1; text-align: center; font-size: 8px; color: #aaa; }
+    .mock-tab.active { color: var(--navy); }
+    .mock-tab-icon { font-size: 16px; display: block; }
+
+    /* ── Section common ── */
+    section { padding: 80px 24px; }
+    .section-inner { max-width: 960px; margin: 0 auto; }
+    .section-label {
+      font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 12px;
+    }
+    .section-title { font-size: clamp(24px, 4vw, 38px); font-weight: 900; line-height: 1.2; letter-spacing: -0.5px; margin-bottom: 16px; }
+    .section-sub { font-size: 16px; color: var(--muted); max-width: 520px; line-height: 1.8; }
+
+    /* ── Problem ── */
+    .problem { background: var(--navy); color: #fff; }
+    .problem .section-title { color: #fff; }
+    .problem .section-sub { color: rgba(255,255,255,0.6); }
+    .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 48px; }
+    .problem-card {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 24px;
+    }
+    .problem-card .icon { font-size: 28px; margin-bottom: 12px; }
+    .problem-card h3 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .problem-card p { font-size: 13px; color: rgba(255,255,255,0.55); line-height: 1.7; }
+
+    /* ── Features ── */
+    .features { background: #fff; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 48px; }
+    .feature-card {
+      background: var(--bg); border-radius: 20px; padding: 28px 24px;
+      border: 1px solid #e8ecf0;
+    }
+    .feature-icon { font-size: 32px; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+    /* ── How it works ── */
+    .how { background: var(--bg); }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 48px; }
+    .step { text-align: center; padding: 24px 16px; position: relative; }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--navy); color: #fff;
+      font-size: 18px; font-weight: 900; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .step h3 { font-size: 15px; font-weight: 800; margin-bottom: 8px; }
+    .step p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Pricing ── */
+    .pricing { background: #fff; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 48px; max-width: 680px; }
+    .plan {
+      border-radius: 24px; padding: 32px 28px;
+      border: 2px solid #e8ecf0;
+    }
+    .plan.featured { border-color: var(--accent); background: linear-gradient(135deg, #f0f7ff, #fff); }
+    .plan-badge {
+      display: inline-block; background: var(--accent); color: #fff;
+      font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .plan h3 { font-size: 20px; font-weight: 900; margin-bottom: 6px; }
+    .plan-price { font-size: 36px; font-weight: 900; color: var(--navy); margin: 12px 0; }
+    .plan-price span { font-size: 14px; font-weight: 400; color: var(--muted); }
+    .plan-features { list-style: none; margin-top: 20px; }
+    .plan-features li { font-size: 14px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid #f0f4f8; display: flex; gap: 8px; }
+    .plan-features li::before { content: '✓'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+    .plan-features li.off::before { content: '—'; color: #ccc; }
+    .plan-features li.off { color: #ccc; }
+
+    /* ── CTA ── */
+    .cta-section {
+      background: linear-gradient(135deg, var(--navy), #0f2040);
+      color: #fff; text-align: center; padding: 100px 24px;
+    }
+    .cta-section .section-title { color: #fff; max-width: 560px; margin: 0 auto 12px; }
+    .cta-section .section-sub { color: rgba(255,255,255,0.6); margin: 0 auto 40px; }
+    .notify-form { display: flex; gap: 10px; max-width: 420px; margin: 0 auto; flex-wrap: wrap; justify-content: center; }
+    .notify-form input {
+      flex: 1; min-width: 220px; padding: 14px 18px; border-radius: 14px; border: none;
+      font-size: 15px; outline: none; color: var(--text);
+    }
+    .notify-form button {
+      background: var(--accent2); color: #fff; border: none;
+      padding: 14px 28px; border-radius: 14px; font-size: 15px; font-weight: 800;
+      cursor: pointer; white-space: nowrap; transition: opacity 0.2s;
+    }
+    .notify-form button:hover { opacity: 0.9; }
+    .notify-note { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 12px; }
+    .notify-success { display: none; background: rgba(74,144,217,0.2); border: 1px solid rgba(74,144,217,0.4); border-radius: 14px; padding: 16px 24px; color: #fff; font-weight: 700; margin: 0 auto; max-width: 420px; }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--navy); color: rgba(255,255,255,0.4);
+      text-align: center; padding: 32px 24px; font-size: 13px;
+    }
+
+    /* ── Utilities ── */
+    .text-accent { color: var(--accent); }
+    .mt-4 { margin-top: 4px; }
+
+    @media (max-width: 600px) {
+      nav { padding: 12px 16px; }
+      .hero { padding: 120px 20px 80px; }
+      section { padding: 60px 20px; }
+      .phone-frame { width: 200px; }
+      .phone-screen { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">Choice</div>
+  <a class="nav-cta" href="#notify">リリース通知を受け取る</a>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-eyebrow">Coming Soon — iOS App</div>
+  <h1>好きなサイトだけを、<br><span>まとめて検索。</span></h1>
+  <p>Choiceは、あなたが登録したサイトだけをキーワードで一括検索できるiOSアプリです。お気に入りの情報源を、もっとスマートに活用しよう。</p>
+  <a class="nav-cta" href="#notify" style="font-size:16px;padding:14px 32px">📬 リリース通知を受け取る</a>
+
+  <div class="hero-mockup">
+    <div class="phone-frame">
+      <div class="phone-screen">
+        <div class="mock-header">
+          <span>Choice</span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.5)">🔍 検索</span>
+        </div>
+        <div class="mock-body">
+          <div class="mock-search">🔍 キーワードを入力...</div>
+          <div class="mock-card">
+            <div class="mock-card-site">📰 サイトA</div>
+            <div class="mock-card-title">検索にヒットした記事のタイトルがここに入ります</div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-card-site">🎯 サイトB</div>
+            <div class="mock-card-title">別のサイトからヒットした結果も並べて表示</div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-card-site">📌 サイトC</div>
+            <div class="mock-card-title">登録したサイトだけを横断的に検索できます</div>
+          </div>
+        </div>
+        <div class="mock-tabs">
+          <div class="mock-tab active"><span class="mock-tab-icon">🔍</span>検索</div>
+          <div class="mock-tab"><span class="mock-tab-icon">🧭</span>追加</div>
+          <div class="mock-tab"><span class="mock-tab-icon">🌐</span>管理</div>
+          <div class="mock-tab"><span class="mock-tab-icon">📰</span>記事</div>
+          <div class="mock-tab"><span class="mock-tab-icon">⚙️</span>設定</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Problem -->
+<section class="problem">
+  <div class="section-inner">
+    <div class="section-label">Problem</div>
+    <h2 class="section-title">こんな経験、ありませんか？</h2>
+    <p class="section-sub">情報収集に時間をかけすぎていませんか。</p>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="icon">😩</div>
+        <h3>サイトをひとつひとつ開いて確認する</h3>
+        <p>お気に入りのサイトを毎回別々に開いて調べるのは手間がかかります。</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">🌊</div>
+        <h3>Google検索は情報が多すぎる</h3>
+        <p>関係ないサイトも大量に表示され、本当に欲しい情報が埋もれてしまいます。</p>
+      </div>
+      <div class="problem-card">
+        <div class="icon">🔖</div>
+        <h3>ブックマークが増えすぎる</h3>
+        <p>お気に入りに追加したサイトが増えすぎて、どこに何があるか分からなくなります。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="section-inner">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Choiceが解決します</h2>
+    <p class="section-sub">自分だけの検索エンジンを、スマートフォンの中に。</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>登録サイトを一括検索</h3>
+        <p>気になるキーワードを入れるだけで、登録したサイトをまとめて横断検索。複数サイトを行き来する手間がゼロに。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧭</div>
+        <h3>サイト探しも簡単</h3>
+        <p>ジャンルやキーワードで新しいサイトを検索・発見。気に入ったらワンタップで登録できます。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📁</div>
+        <h3>グループ管理</h3>
+        <p>サイトをジャンルや用途でグループ化。検索時にグループを絞り込んで、ピンポイントに探せます。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📰</div>
+        <h3>新着トピックを自動取得</h3>
+        <p>登録サイトの新着記事をまとめて表示。毎日の情報収集が一か所で完結します。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📌</div>
+        <h3>あとで読むリスト</h3>
+        <p>気になった記事をすぐに保存。後でまとめて読み返せます。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>アプリ内ブラウザ</h3>
+        <p>記事や検索結果をアプリを離れずそのまま閲覧。快適な読書体験を提供します。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="how">
+  <div class="section-inner">
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">使い方は3ステップ</h2>
+    <p class="section-sub">難しい設定は不要。すぐに使い始められます。</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>サイトを登録する</h3>
+        <p>よく見るお気に入りのサイトをChoiceに登録します。URLを貼るか、キーワードで検索して追加できます。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>キーワードで検索する</h3>
+        <p>調べたいキーワードを入力するだけ。登録した全サイトから関連情報をまとめて表示します。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>記事を読む・保存する</h3>
+        <p>気になった記事をタップして閲覧。「あとで読む」に保存すればいつでも見返せます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="pricing">
+  <div class="section-inner">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">シンプルな料金プラン</h2>
+    <p class="section-sub">まずは無料で試してみてください。</p>
+    <div class="pricing-grid">
+      <div class="plan">
+        <h3>無料版</h3>
+        <div class="plan-price">¥0 <span>/ 永久無料</span></div>
+        <ul class="plan-features">
+          <li>登録サイト最大5件</li>
+          <li>キーワード検索</li>
+          <li>アプリ内ブラウザ</li>
+          <li class="off">グループ管理</li>
+          <li class="off">トピック（新着記事）</li>
+          <li class="off">あとで読むリスト</li>
+        </ul>
+      </div>
+      <div class="plan featured">
+        <div class="plan-badge">おすすめ</div>
+        <h3>プレミアム版</h3>
+        <div class="plan-price">¥XXX <span>/ 買い切り</span></div>
+        <ul class="plan-features">
+          <li>登録サイト無制限</li>
+          <li>キーワード検索</li>
+          <li>アプリ内ブラウザ</li>
+          <li>グループ管理</li>
+          <li>トピック（新着記事）</li>
+          <li>あとで読むリスト</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="notify">
+  <div class="section-inner">
+    <h2 class="section-title">リリースをお見逃しなく</h2>
+    <p class="section-sub">メールアドレスを登録しておくと、リリース時に通知をお送りします。</p>
+    <div class="notify-form" id="notify-form">
+      <input type="email" id="email-input" placeholder="your@email.com">
+      <button onclick="submitNotify()">通知を受け取る</button>
+    </div>
+    <div class="notify-success" id="notify-success">
+      ✅ 登録しました！リリース時にご連絡します。
+    </div>
+    <p class="notify-note">スパムメールは送りません。配信停止はいつでも可能です。</p>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <p>© 2026 Choice. All rights reserved.</p>
+</footer>
+
+<script>
+  function submitNotify() {
+    const email = document.getElementById('email-input').value.trim();
+    if (!email || !email.includes('@')) {
+      alert('正しいメールアドレスを入力してください。');
+      return;
+    }
+    // TODO: メール送信処理（Google Forms / Supabase 等に接続）
+    document.getElementById('notify-form').style.display = 'none';
+    document.getElementById('notify-success').style.display = 'block';
+  }
+
+  document.getElementById('email-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') submitNotify();
+  });
+</script>
+
+</body>
+</html>
