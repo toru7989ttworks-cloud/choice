@@ -2047,7 +2047,7 @@ def extract_links(base_url: str, body: str) -> list[str]:
 # ── License ──────────────────────────────────────────────
 # Gumroad の Product Permalink。Gumroad 設定後に入力する。
 GUMROAD_PRODUCT_ID = ""
-FREE_SITE_LIMIT = 5
+FREE_SITE_LIMIT = 30
 
 
 def _get_license_status(conn, token: str) -> str:
@@ -2832,7 +2832,7 @@ def search(req: SearchRequest, token: str = Depends(get_token)):
         sites = conn.execute("SELECT * FROM sites WHERE user_token=?", (token,)).fetchall()
     if not sites:
         conn.close()
-        raise HTTPException(status_code=400, detail="サイトが登録されていません")
+        return {"results": [], "query": req.query, "count": 0}
 
     includes, excludes = parse_search_query(req.query)
 
@@ -2900,7 +2900,7 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
     conn.close()
 
     if not sites:
-        raise HTTPException(status_code=400, detail="サイトが登録されていません")
+        return {"results": [], "query": req.query, "count": 0}
 
     def fetch_brave(site):
         domain = urllib.parse.urlparse(site["url"]).netloc
