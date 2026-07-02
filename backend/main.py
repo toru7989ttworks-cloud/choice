@@ -2198,7 +2198,7 @@ img,video,table,pre{max-width:100%!important;height:auto!important}
   document.addEventListener('DOMContentLoaded', function(){
     obs.observe(document.body, {childList:true, subtree:true});
   });
-  // 画面幅に合わせて縮小（viewport meta 書き換えで iOS Safari でも動作）
+  // 画面幅に合わせて縮小（CSS zoom を使用して親ページのレイアウトに影響させない）
   var _fitLock = false;
   function autoFit(){
     if(_fitLock) return;
@@ -2210,13 +2210,7 @@ img,video,table,pre{max-width:100%!important;height:auto!important}
     if(docW > winW + 5){
       _fitLock = true;
       var scale = (winW / docW).toFixed(3);
-      var vp = document.querySelector('meta[name="viewport"]');
-      if(!vp){
-        vp = document.createElement('meta');
-        vp.name = 'viewport';
-        document.head.appendChild(vp);
-      }
-      vp.content = 'width=' + docW + ',initial-scale=' + scale + ',user-scalable=yes';
+      document.documentElement.style.zoom = scale;
       setTimeout(function(){ _fitLock = false; }, 400);
     }
   }
