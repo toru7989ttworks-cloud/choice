@@ -469,7 +469,7 @@ HTML = """<!DOCTYPE html>
 
   <!-- Topics / Read Later page -->
   <div class="page" id="page-topics">
-    <div class="container" style="padding-top:8px">
+    <div class="container" style="padding-top:0">
       <div class="seg-ctrl" style="width:100%;margin-bottom:8px">
         <button class="seg-btn active" style="flex:1" id="content-seg-topics" onclick="showContentSeg('topics')" data-i18n="topics_tab">📰 トピック</button>
         <button class="seg-btn" style="flex:1" id="content-seg-later" onclick="showContentSeg('later')" data-i18n="later_tab">📌 あとで読む</button>
