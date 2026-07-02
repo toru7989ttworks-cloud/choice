@@ -1312,12 +1312,12 @@ async function searchForSites() {
         <div class="card-site"><img src="${getFavicon(r.url)}" class="favicon" onerror="this.style.display='none'">${esc(r.site_name)}</div>
         <div class="card-title">${esc(r.title)}</div>
         ${r.excerpt ? `<div class="card-excerpt">${esc(r.excerpt)}</div>` : ''}
-        <div style="display:flex;align-items:center;margin-top:4px">
-          <div class="card-url" style="flex:1">${esc(r.url)}</div>
+        <div style="display:flex;align-items:center;margin-top:6px;gap:8px">
+          <div class="card-url" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url)}</div>
           <button id="found-btn-${i}"
             onclick="event.stopPropagation();addFoundSite('${esc(r.site_url)}','${esc(r.site_name)}',${i})"
-            style="border:none;border-radius:16px;font-size:13px;font-weight:bold;cursor:pointer;padding:5px 12px;white-space:nowrap;flex-shrink:0;${r.is_registered?'background:#e8f5e9;color:#2e7d32;pointer-events:none':'background:#e27d60;color:#fff'}"
-            title="${r.is_registered?'登録済み':'サイトを登録'}">${r.is_registered?'✓登録済':'＋追加'}</button>
+            style="border:none;border-radius:16px;font-size:13px;font-weight:bold;cursor:pointer;padding:5px 10px;white-space:nowrap;flex-shrink:0;${r.is_registered?'background:#e8f5e9;color:#2e7d32;pointer-events:none':'background:#e27d60;color:#fff'}"
+            title="${r.is_registered?'登録済み':'サイトを登録'}">${r.is_registered?'✓':'＋追加'}</button>
         </div>
       </div>`).join('');
   } catch(e) {
