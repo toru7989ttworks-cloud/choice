@@ -386,17 +386,18 @@ HTML = """<!DOCTYPE html>
         <span>🔍</span>
         <input type="search" id="query" data-i18n="search_ph" placeholder="キーワードを入力..." onkeydown="if(event.key==='Enter')doSearch()">
         <button onclick="clearSearch()" id="clear-btn" style="background:none;border:none;font-size:18px;color:#aaa;display:none">✕</button>
+        <button onclick="doSearch()" data-i18n="search_btn" style="background:#1a1a2e;color:#fff;border:none;padding:8px 18px;border-radius:20px;font-size:14px;font-weight:bold;cursor:pointer;white-space:nowrap;flex-shrink:0">検索</button>
       </div>
-      <div id="search-history" style="margin-bottom:10px;display:none"></div>
-      <div class="group-row" id="group-filter-row">
-        <button class="group-chip active" id="group-chip-all" onclick="setGroupFilter(null)" data-i18n="group_all">すべて</button>
-      </div>
-      <div class="mode-row">
+      <div class="mode-row" style="margin-bottom:8px">
         <div class="seg-ctrl">
           <button class="seg-btn active" id="mode-web" onclick="setMode('web')" data-i18n="mode_web">🌐 Web</button>
           <button class="seg-btn" id="mode-index" onclick="setMode('index')" data-i18n="mode_index">📚 インデックス</button>
         </div>
-        <button class="search-btn" onclick="doSearch()" data-i18n="search_btn">検索</button>
+      </div>
+      <div id="search-history" style="margin-bottom:10px;display:none"></div>
+      <div style="font-size:11px;color:#aaa;padding:0 2px 4px" data-i18n="group_filter_label">対象グループ</div>
+      <div class="group-row" id="group-filter-row">
+        <button class="group-chip active" id="group-chip-all" onclick="setGroupFilter(null)" data-i18n="group_all">すべて</button>
       </div>
       <div id="results"></div>
     </div>
@@ -777,7 +778,7 @@ const T = {
     no_api_note:'APIキー未設定の場合は Yahoo Japan 経由で検索します（スニペットなし）。APIキーはこのサーバー内にのみ保存されます。',
     crawl_auto_title:'🔄 サイト追加時の自動クロール', crawl_auto_hint:'「する」にするとサイト追加時に自動でインデックスを作成します。時間がかかる場合があります。', crawl_auto_off:'しない', crawl_auto_on:'する',
     adding:'追加中...', adding_crawl:'追加＆クロール中...',
-    group_all:'すべて', group_mgmt_title:'📁 グループ管理', group_name_ph:'グループ名', group_add_btn:'追加', group_none:'グループなし', group_delete_confirm:'このグループを削除しますか？（サイトはグループなしになります）',
+    group_filter_label:'対象グループ', group_all:'すべて', group_mgmt_title:'📁 グループ管理', group_name_ph:'グループ名', group_add_btn:'追加', group_none:'グループなし', group_delete_confirm:'このグループを削除しますか？（サイトはグループなしになります）',
     explore_open_sites:'登録済みサイトを開く', preset_title:'📦 プリセットから追加', preset_desc:'カテゴリを選んでサイトをまとめて登録できます。', preset_btn:'📦 プリセットを見る',
     shortcut_title:'⚡ iOS ショートカットで追加（推奨）', clipboard_title:'📋 クリップボードから追加', clipboard_btn:'📋 コピーした URL を貼り付け',
     topics_tab:'📰 トピック', later_tab:'📌 あとで読む', topics_all:'すべて', topics_refresh_btn:'🔄 更新', topics_refreshing:'取得中...',
@@ -819,7 +820,7 @@ const T = {
     no_api_note:'Without an API key, Yahoo Japan is used (no snippets). API keys are stored on this server only.',
     crawl_auto_title:'🔄 Auto-crawl on Site Add', crawl_auto_hint:'When ON, newly added sites are crawled automatically. This may take a moment.', crawl_auto_off:'Off', crawl_auto_on:'On',
     adding:'Adding...', adding_crawl:'Adding & crawling...',
-    group_all:'All', group_mgmt_title:'📁 Group Management', group_name_ph:'Group name', group_add_btn:'Add', group_none:'No group', group_delete_confirm:'Delete this group? (Sites will become ungrouped)',
+    group_filter_label:'Search group', group_all:'All', group_mgmt_title:'📁 Group Management', group_name_ph:'Group name', group_add_btn:'Add', group_none:'No group', group_delete_confirm:'Delete this group? (Sites will become ungrouped)',
     explore_open_sites:'Open registered sites', preset_title:'📦 Add from Presets', preset_desc:'Select categories to register sites in bulk.', preset_btn:'📦 Browse Presets',
     shortcut_title:'⚡ Add via iOS Shortcut (Recommended)', clipboard_title:'📋 Add from Clipboard', clipboard_btn:'📋 Paste Copied URL',
     topics_tab:'📰 Topics', later_tab:'📌 Read Later', topics_all:'All', topics_refresh_btn:'🔄 Refresh', topics_refreshing:'Loading...',
@@ -861,7 +862,7 @@ const T = {
     no_api_note:'未设置API密钥时通过Yahoo Japan搜索（无摘要）。API密钥仅保存在此服务器上。',
     crawl_auto_title:'🔄 添加网站时自动爬取', crawl_auto_hint:'开启后，添加网站时将自动创建索引。可能需要一些时间。', crawl_auto_off:'关闭', crawl_auto_on:'开启',
     adding:'添加中...', adding_crawl:'添加并爬取中...',
-    group_all:'全部', group_mgmt_title:'📁 分组管理', group_name_ph:'分组名称', group_add_btn:'添加', group_none:'无分组', group_delete_confirm:'删除此分组？（网站将变为无分组）',
+    group_filter_label:'搜索分组', group_all:'全部', group_mgmt_title:'📁 分组管理', group_name_ph:'分组名称', group_add_btn:'添加', group_none:'无分组', group_delete_confirm:'删除此分组？（网站将变为无分组）',
     explore_open_sites:'打开已注册网站', preset_title:'📦 从预设添加', preset_desc:'选择分类批量注册网站。', preset_btn:'📦 浏览预设',
     shortcut_title:'⚡ 通过iOS快捷方式添加（推荐）', clipboard_title:'📋 从剪贴板添加', clipboard_btn:'📋 粘贴复制的URL',
     topics_tab:'📰 话题', later_tab:'📌 稍后阅读', topics_all:'全部', topics_refresh_btn:'🔄 刷新', topics_refreshing:'获取中...',
