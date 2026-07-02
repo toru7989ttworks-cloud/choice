@@ -115,7 +115,7 @@
 
   <div class="doc-header">
     <h1>Choice アプリ 公開ロードマップ</h1>
-    <div class="meta">作成日: 2026年7月2日</div>
+    <div class="meta">作成日: 2026年7月2日　／　更新日: 2026年7月2日</div>
     <div class="goal">
       <strong>ゴール:</strong> アプリを公開し、継続的な収益を得る<br>
       <strong>コンセプト:</strong> 好きなサイトだけをまとめてキーワード検索できる iOS Web アプリ（PWA）
@@ -124,7 +124,7 @@
 
   <div class="current-banner">
     <span class="badge">現在地</span>
-    フェーズ 1（アプリ開発）の終盤。コア機能は完成、公開準備フェーズへ移行する段階。
+    フェーズ 2 進行中。Railway デプロイ・PWA インストール確認済み。次：SQLite 永続化。
   </div>
 
   <!-- Phase 1 -->
@@ -202,35 +202,35 @@
       </div>
     </div>
     <div class="task-list">
-      <div class="task current">
-        <span class="check">🔲</span>
+      <div class="task done">
+        <span class="check">✅</span>
         <div class="task-body">
           <div class="task-name">manifest.json の追加</div>
           <div class="task-note">アプリ名・アイコン・テーマカラーを定義。ホーム画面追加ダイアログに必須。</div>
         </div>
         <span class="tag tech">技術</span>
       </div>
-      <div class="task current">
-        <span class="check">🔲</span>
+      <div class="task done">
+        <span class="check">✅</span>
         <div class="task-body">
-          <div class="task-name">アプリアイコン作成</div>
-          <div class="task-note">192×192 / 512×512 px の PNG（iOS 用 180×180 も）</div>
+          <div class="task-name">アプリアイコン作成（プレースホルダー）</div>
+          <div class="task-note">192×192 / 512×512 px の PNG 生成済み。差し替え前提。</div>
         </div>
         <span class="tag design">デザイン</span>
       </div>
-      <div class="task current">
-        <span class="check">🔲</span>
+      <div class="task done">
+        <span class="check">✅</span>
         <div class="task-body">
-          <div class="task-name">Railway / Render へのデプロイ</div>
-          <div class="task-note">HTTPS が自動付与される。Dockerfile または nixpacks で構築。</div>
+          <div class="task-name">Railway へのデプロイ</div>
+          <div class="task-note">https://choice-0cc6-production.up.railway.app で稼働中。HTTPS・24時間稼働。</div>
         </div>
         <span class="tag tech">技術</span>
       </div>
-      <div class="task current">
-        <span class="check">🔲</span>
+      <div class="task current" style="border: 2px solid #4a90d9;">
+        <span class="check">👉</span>
         <div class="task-body">
           <div class="task-name">SQLite 永続化（ボリューム設定）</div>
-          <div class="task-note">Railway の Persistent Volume（$0.25/GB/月）か Fly.io の無料ボリュームで解決</div>
+          <div class="task-note">再デプロイのたびに DB がリセットされる。Railway の Persistent Volume で解決。</div>
         </div>
         <span class="tag tech">技術</span>
       </div>
