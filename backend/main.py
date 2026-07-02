@@ -398,8 +398,8 @@ HTML = """<!DOCTYPE html>
       <div class="group-row" id="group-filter-row">
         <button class="group-chip active" id="group-chip-all" onclick="setGroupFilter(null)" data-i18n="group_all">すべて</button>
       </div>
+      <div id="search-history" style="margin-bottom:10px;display:none"></div>
       <div id="results"></div>
-      <div id="search-history" style="margin-top:8px;display:none"></div>
     </div>
   </div>
 
