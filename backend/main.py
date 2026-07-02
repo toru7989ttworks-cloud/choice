@@ -394,12 +394,12 @@ HTML = """<!DOCTYPE html>
           <button class="seg-btn" id="mode-index" onclick="setMode('index')" data-i18n="mode_index">📚 インデックス</button>
         </div>
       </div>
-      <div id="search-history" style="margin-bottom:10px;display:none"></div>
       <div style="font-size:11px;color:#aaa;padding:0 2px 4px" data-i18n="group_filter_label">対象グループ</div>
       <div class="group-row" id="group-filter-row">
         <button class="group-chip active" id="group-chip-all" onclick="setGroupFilter(null)" data-i18n="group_all">すべて</button>
       </div>
       <div id="results"></div>
+      <div id="search-history" style="margin-top:8px;display:none"></div>
     </div>
   </div>
 
