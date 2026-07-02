@@ -481,7 +481,6 @@ HTML = """<!DOCTYPE html>
       </div>
     </div>
   </div>
-</div>
 
   <!-- Topics / Read Later page -->
   <div class="page" id="page-topics">
@@ -621,6 +620,7 @@ HTML = """<!DOCTYPE html>
       </div>
     </div>
   </div>
+</div>
 
 <!-- プリセットオーバーレイ -->
 <div id="preset-overlay" style="display:none;position:fixed;inset:0;z-index:850;background:#1a1a2e;flex-direction:column">
@@ -1293,47 +1293,13 @@ async function changeSiteGroup(siteId, groupId) {
   loadGroupChips();
 }
 
-async function searchForSites() {
-  const q = document.getElementById('site-search-input').value.trim();
-  if (!q) return;
-  const btn = document.getElementById('site-search-btn');
-  const el = document.getElementById('site-search-results');
-  btn.textContent = '検索中...';
-  btn.disabled = true;
-  el.innerHTML = `<div class="loading" style="padding:16px 0">${t('loading')}</div>`;
-  try {
-    const data = await api('/search-sites?q=' + encodeURIComponent(q));
-    if (!data.results.length) {
-      el.innerHTML = `<div class="empty" style="padding:20px 0"><div class="empty-icon">🔍</div>${t('no_results')}</div>`;
-      return;
-    }
-    el.innerHTML = data.results.map((r, i) => `
-      <div class="card" onclick="openBrowser('${esc(r.url)}',false,'${esc(r.title)}','${esc(r.site_name)}')" style="cursor:pointer">
-        <div class="card-site"><img src="${getFavicon(r.url)}" class="favicon" onerror="this.style.display='none'">${esc(r.site_name)}</div>
-        <div class="card-title">${esc(r.title)}</div>
-        ${r.excerpt ? `<div class="card-excerpt">${esc(r.excerpt)}</div>` : ''}
-        <div style="display:flex;align-items:center;margin-top:6px;gap:8px">
-          <div class="card-url" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url)}</div>
-          <button id="found-btn-${i}"
-            onclick="event.stopPropagation();addFoundSite('${esc(r.site_url)}','${esc(r.site_name)}',${i})"
-            style="border:none;border-radius:16px;font-size:13px;font-weight:bold;cursor:pointer;padding:5px 10px;white-space:nowrap;flex-shrink:0;${r.is_registered?'background:#e8f5e9;color:#2e7d32;pointer-events:none':'background:#e27d60;color:#fff'}"
-            title="${r.is_registered?'登録済み':'サイトを登録'}">${r.is_registered?'✓':'＋追加'}</button>
-        </div>
-      </div>`).join('');
-  } catch(e) {
-    el.innerHTML = `<div class="empty" style="padding:20px 0"><div class="empty-icon">⚠️</div>${t('error_msg')}</div>`;
-  } finally {
-    btn.textContent = '検索';
-    btn.disabled = false;
-  }
-}
-
 async function addFoundSite(siteUrl, siteName, idx, btnEl) {
   const btn = idx !== null ? document.getElementById('found-btn-' + idx) : btnEl;
   btn.style.opacity = '0.5';
   btn.style.pointerEvents = 'none';
   try {
-    const searchWord = document.getElementById('site-search-input').value.trim();
+    const _searchInput = document.getElementById('site-search-input') || document.getElementById('explore-input');
+    const searchWord = _searchInput ? _searchInput.value.trim() : '';
     let groupId = null;
     if (searchWord) {
       const grp = await api('/groups/find-or-create', {method:'POST',
@@ -1501,68 +1467,6 @@ function addFromInput() {
   } catch(e) { alert(t('alert_url_invalid')); }
 }
 
-const exploreFolderOpen = {};
-
-async function loadExploreSites() {
-  const [sitesData, groupsData] = await Promise.all([api('/sites'), api('/groups')]);
-  const el = document.getElementById('explore-sites');
-  if (!sitesData.length) {
-    el.innerHTML = `<div class="empty" style="padding:20px 0"><div class="empty-icon">🌐</div>${t('no_explore_sites')}</div>`;
-    return;
-  }
-
-  // グループ分類
-  const grouped = {};
-  groupsData.forEach(g => { grouped[g.id] = {name: g.name, sites: []}; });
-  grouped['none'] = {name: t('group_none'), sites: []};
-  sitesData.forEach(s => {
-    const key = s.group_id || 'none';
-    if (!grouped[key]) grouped[key] = {name: s.group_name || t('group_none'), sites: []};
-    grouped[key].sites.push(s);
-  });
-
-  function siteCard(s) {
-    return `<div class="card" onclick="openBrowser('${esc(s.url)}')" style="display:flex;align-items:center;gap:12px;padding:11px 14px;margin-bottom:4px;cursor:pointer">
-      <img src="${getFavicon(s.url)}" style="width:20px;height:20px;border-radius:3px;flex-shrink:0" onerror="this.style.display='none'">
-      <div style="flex:1;min-width:0">
-        <div class="card-title" style="font-size:14px">${esc(s.name)}</div>
-        <div class="card-url">${s.url}</div>
-      </div>
-      <span style="color:#ccc;font-size:18px">›</span>
-    </div>`;
-  }
-
-  function folder(key, {name, sites: ss}) {
-    if (!ss.length) return '';
-    if (exploreFolderOpen[key] === undefined) exploreFolderOpen[key] = false;
-    const open = exploreFolderOpen[key];
-    const icon = key === 'none' ? '📂' : '📁';
-    return `<div>
-      <div class="folder-header" onclick="toggleExploreFolder('${key}')">
-        <span class="folder-icon">${icon}</span>
-        <span class="folder-name">${esc(name)}</span>
-        <span class="folder-count">${ss.length}${t('sites_unit')}</span>
-        <span class="folder-arrow ${open ? 'open' : ''}">›</span>
-      </div>
-      <div class="folder-body" id="explore-folder-body-${key}" style="display:${open ? '' : 'none'}">
-        ${ss.map(siteCard).join('')}
-      </div>
-    </div>`;
-  }
-
-  const parts = groupsData.map(g => folder(g.id, grouped[g.id]));
-  parts.push(folder('none', grouped['none']));
-  el.innerHTML = parts.join('');
-}
-
-function toggleExploreFolder(key) {
-  exploreFolderOpen[key] = !exploreFolderOpen[key];
-  const body = document.getElementById('explore-folder-body-' + key);
-  const arrow = body?.previousElementSibling?.querySelector('.folder-arrow');
-  if (body) body.style.display = exploreFolderOpen[key] ? '' : 'none';
-  if (arrow) arrow.classList.toggle('open', exploreFolderOpen[key]);
-}
-
 // ショートカット用 URL を表示
 (function() {
   const el = document.getElementById('shortcut-url');
@@ -1598,10 +1502,12 @@ async function pasteFromClipboard() {
 
 // ── トピック ──────────────────────────────────────────
 async function loadTopicGroups() {
-  const groups = await api('/groups');
   const sel = document.getElementById('topic-group-select');
+  const prev = sel.value;
+  const groups = await api('/groups');
   sel.innerHTML = `<option value="">${t('topics_all')}</option>` +
     groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  if (prev) sel.value = prev;
 }
 
 async function loadTopics() {
@@ -2996,25 +2902,6 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
             title = html.unescape(re.sub(r"<[^>]+>", "", raw_title)).strip()
             if title:
                 items.append({"url": actual_url, "title": title, "excerpt": "", "site_name": site["name"]})
-        return items
-
-    def fetch_yahoo(site):
-        domain = urllib.parse.urlparse(site["url"]).netloc
-        q = f"{req.query} site:{domain}"
-        try:
-            s_sess = cffi_requests.Session(impersonate="chrome124")
-            resp = s_sess.get("https://search.yahoo.co.jp/search", params={"p": q}, timeout=10)
-            body = resp.text
-        except Exception:
-            return []
-        cards = re.findall(r'<div class="sw-Card Algo[^"]*">(.*?)(?=<div class="sw-Card Algo|</section>)', body, re.DOTALL)
-        items = []
-        for card in cards[:10]:
-            url_m   = re.search(r'<a href="(https://[^"]+)" class="sw-Card__titleInner', card)
-            title_m = re.search(r'class="sw-Card__titleMain[^"]*"[^>]*>(.*?)</(?:h3|span|a|div)>', card, re.DOTALL)
-            if not url_m or not title_m:
-                continue
-            items.append({"url": url_m.group(1), "title": html.unescape(re.sub(r"<[^>]+>","",title_m.group(1))).strip(), "excerpt": "", "site_name": site["name"]})
         return items
 
     if provider == "brave" and brave_key:
