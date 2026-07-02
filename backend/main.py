@@ -181,7 +181,7 @@ HTML = """<!DOCTYPE html>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { overflow-x: clip; min-height: 100%; }
-  body { font-family: -apple-system, sans-serif; background: #f0f4f8; color: #333; overflow-x: clip; min-height: 100vh; overscroll-behavior-y: none; }
+  body { font-family: -apple-system, sans-serif; background: #f0f4f8; color: #333; overflow-x: clip; min-height: 100vh; }
   .header {
     background: #1a1a2e; color: #fff;
     padding: env(safe-area-inset-top, 20px) 16px 16px;
