@@ -717,6 +717,11 @@ function setMode(mode) {
 }
 
 function getOrCreateToken() {
+  const sync = new URLSearchParams(location.search).get('sync');
+  if (sync && sync.length >= 16) {
+    localStorage.setItem('ch_token', sync);
+    history.replaceState(null, '', location.pathname);
+  }
   let t = localStorage.getItem('ch_token');
   if (!t || t.length < 16) {
     t = 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -2542,8 +2547,9 @@ def rename_group(group_id: int, body: dict, token: str = Depends(get_token)):
 def search_sites_endpoint(q: str, token: str = Depends(get_token)):
     conn = get_db()
     def s(key): r = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone(); return r["value"] if r else None
-    provider  = s("search_provider") or "yahoo"
-    brave_key = s("brave_api_key")
+    _env_brave = os.environ.get("BRAVE_API_KEY", "")
+    provider  = s("search_provider") or ("brave" if _env_brave else "yahoo")
+    brave_key = s("brave_api_key") or _env_brave
     google_key = s("google_api_key")
     google_cx  = s("google_cx")
     registered_rows = conn.execute("SELECT url FROM sites WHERE user_token=?", (token,)).fetchall()
@@ -2886,8 +2892,9 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
     else:
         sites = conn.execute("SELECT * FROM sites WHERE user_token=?", (token,)).fetchall()
     def s(key): r = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone(); return r["value"] if r else None
-    provider    = s("search_provider") or "brave"
-    brave_key   = s("brave_api_key")
+    _env_brave  = os.environ.get("BRAVE_API_KEY", "")
+    provider    = s("search_provider") or ("brave" if _env_brave else "yahoo")
+    brave_key   = s("brave_api_key") or _env_brave
     google_key  = s("google_api_key")
     google_cx   = s("google_cx")
     conn.close()
@@ -2959,8 +2966,9 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
 def search_explore(req: SearchRequest, token: str = Depends(get_token)):
     conn = get_db()
     def sv(key): r = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone(); return r["value"] if r else None
-    provider   = sv("search_provider") or "brave"
-    brave_key  = sv("brave_api_key")
+    _env_brave = os.environ.get("BRAVE_API_KEY", "")
+    provider   = sv("search_provider") or ("brave" if _env_brave else "yahoo")
+    brave_key  = sv("brave_api_key") or _env_brave
     google_key = sv("google_api_key")
     google_cx  = sv("google_cx")
     conn.close()
