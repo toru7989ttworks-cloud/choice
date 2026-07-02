@@ -1300,8 +1300,8 @@ async function searchForSites() {
           <div class="card-url" style="flex:1">${esc(r.url)}</div>
           <button id="found-btn-${i}"
             onclick="event.stopPropagation();addFoundSite('${esc(r.site_url)}','${esc(r.site_name)}',${i})"
-            style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px;color:${r.is_registered?'#4a90d9':'#ccc'}"
-            title="${r.is_registered?'登録済み':'サイトを登録'}">${r.is_registered?'✓':'＋'}</button>
+            style="border:none;border-radius:16px;font-size:13px;font-weight:bold;cursor:pointer;padding:5px 12px;white-space:nowrap;flex-shrink:0;${r.is_registered?'background:#e8f5e9;color:#2e7d32;pointer-events:none':'background:#e27d60;color:#fff'}"
+            title="${r.is_registered?'登録済み':'サイトを登録'}">${r.is_registered?'✓登録済':'＋追加'}</button>
         </div>
       </div>`).join('');
   } catch(e) {
