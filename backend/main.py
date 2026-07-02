@@ -607,23 +607,27 @@ HTML = """<!DOCTYPE html>
   </div>
 
 <!-- プリセットオーバーレイ -->
-<div id="preset-overlay" style="display:none;position:fixed;inset:0;z-index:850;background:#f0f4f8;flex-direction:column">
-  <div style="background:#1a1a2e;padding:8px 12px;padding-top:calc(env(safe-area-inset-top,0px) + 8px);display:flex;align-items:center;gap:8px">
+<div id="preset-overlay" style="display:none;position:fixed;inset:0;z-index:850;background:#1a1a2e;flex-direction:column">
+  <div style="height:env(safe-area-inset-top,20px);flex-shrink:0"></div>
+  <div style="padding:8px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0">
     <button onclick="closePresets()" style="background:none;border:none;color:#fff;font-size:15px;padding:4px 8px;cursor:pointer;white-space:nowrap">✕ 閉じる</button>
     <span style="flex:1;color:#fff;font-weight:bold;font-size:16px">🔍 サイトを探す</span>
   </div>
-  <div style="overflow-y:auto;flex:1;padding:12px" id="preset-list"></div>
+  <div style="overflow-y:auto;flex:1;padding:12px;background:#f0f4f8" id="preset-list"></div>
 </div>
 
 <!-- 全画面ブラウザオーバーレイ -->
-<div id="browser-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:#fff;flex-direction:column;overflow:hidden">
-  <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:#1a1a2e;padding-top:calc(env(safe-area-inset-top,20px) + 8px);flex-shrink:0">
+<div id="browser-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:#1a1a2e;flex-direction:column">
+  <!-- safe-area スペーサー: ノッチ・Dynamic Island の高さを確保 -->
+  <div style="height:env(safe-area-inset-top,20px);flex-shrink:0"></div>
+  <!-- ヘッダー -->
+  <div id="browser-header" style="display:flex;align-items:center;gap:6px;padding:8px 10px;flex-shrink:0">
     <button onclick="closeBrowser()" data-i18n="close_btn" style="background:none;border:none;color:#fff;font-size:15px;padding:4px 8px;cursor:pointer;white-space:nowrap">✕ 閉じる</button>
     <div id="browser-url" style="flex:1;background:rgba(255,255,255,0.15);border-radius:10px;padding:6px 10px;font-size:12px;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <button id="browser-later-btn" onclick="saveBrowserPageForLater()" style="background:none;border:none;color:#ddd;font-size:20px;padding:4px 2px;cursor:pointer;flex-shrink:0" title="あとで読む">📌</button>
     <button id="browser-add-btn" onclick="addBrowserSite()" data-i18n="add_site_btn" style="background:#e27d60;border:none;color:#fff;font-size:13px;font-weight:bold;padding:6px 12px;border-radius:16px;cursor:pointer;white-space:nowrap">＋追加</button>
   </div>
-  <iframe id="browser-frame" src="about:blank" style="flex:1;width:100%;border:none" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  <iframe id="browser-frame" src="about:blank" style="flex:1;width:100%;border:none;background:#fff" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
 </div>
 
 <div class="tab-bar">
