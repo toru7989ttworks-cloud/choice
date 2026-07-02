@@ -2047,7 +2047,7 @@ def extract_links(base_url: str, body: str) -> list[str]:
 # ── License ──────────────────────────────────────────────
 # Gumroad の Product Permalink。Gumroad 設定後に入力する。
 GUMROAD_PRODUCT_ID = ""
-FREE_SITE_LIMIT = 30
+FREE_SITE_LIMIT = 9999
 
 
 def _get_license_status(conn, token: str) -> str:
