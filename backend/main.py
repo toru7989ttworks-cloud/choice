@@ -2927,6 +2927,30 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
         except Exception:
             return []
 
+    def fetch_ddg(site):
+        domain = urllib.parse.urlparse(site["url"]).netloc
+        q = f"{req.query} site:{domain}"
+        try:
+            s_sess = cffi_requests.Session(impersonate="chrome124")
+            resp = s_sess.get("https://html.duckduckgo.com/html/", params={"q": q}, timeout=10,
+                              headers={"Accept-Language": "ja,en;q=0.9"})
+            body = resp.text
+        except Exception:
+            return []
+        results = re.findall(r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', body, re.DOTALL)
+        items = []
+        for raw_url, raw_title in results[:10]:
+            m = re.search(r'uddg=([^&"]+)', raw_url)
+            if not m:
+                continue
+            actual_url = urllib.parse.unquote(m.group(1))
+            if "duckduckgo.com/y.js" in actual_url:
+                continue
+            title = html.unescape(re.sub(r"<[^>]+>", "", raw_title)).strip()
+            if title:
+                items.append({"url": actual_url, "title": title, "excerpt": "", "site_name": site["name"]})
+        return items
+
     def fetch_yahoo(site):
         domain = urllib.parse.urlparse(site["url"]).netloc
         q = f"{req.query} site:{domain}"
@@ -2951,7 +2975,7 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
     elif provider == "google" and google_key and google_cx:
         fetch_fn = fetch_google
     else:
-        fetch_fn = fetch_yahoo
+        fetch_fn = fetch_ddg
 
     results = []
     with ThreadPoolExecutor(max_workers=min(len(sites), 8)) as ex:
@@ -3000,15 +3024,19 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
     else:
         try:
             s_sess = cffi_requests.Session(impersonate="chrome124")
-            resp = s_sess.get("https://search.yahoo.co.jp/search", params={"p": q}, timeout=15)
+            resp = s_sess.get("https://html.duckduckgo.com/html/", params={"q": q}, timeout=15,
+                              headers={"Accept-Language": "ja,en;q=0.9"})
             body = resp.text
-            cards = re.findall(r'<div class="sw-Card Algo[^"]*">(.*?)(?=<div class="sw-Card Algo|</section>)', body, re.DOTALL)
-            for card in cards[:20]:
-                url_m   = re.search(r'<a href="(https://[^"]+)" class="sw-Card__titleInner', card)
-                title_m = re.search(r'class="sw-Card__titleMain[^"]*"[^>]*>(.*?)</(?:h3|span|a|div)>', card, re.DOTALL)
-                if not url_m or not title_m:
+            for raw_url, raw_title in re.findall(r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', body, re.DOTALL)[:20]:
+                m = re.search(r'uddg=([^&"]+)', raw_url)
+                if not m:
                     continue
-                results.append({"url": url_m.group(1), "title": html.unescape(re.sub(r"<[^>]+>","",title_m.group(1))).strip(), "excerpt": ""})
+                actual_url = urllib.parse.unquote(m.group(1))
+                if "duckduckgo.com/y.js" in actual_url:
+                    continue
+                title = html.unescape(re.sub(r"<[^>]+>", "", raw_title)).strip()
+                if title:
+                    results.append({"url": actual_url, "title": title, "excerpt": ""})
         except Exception:
             pass
 
