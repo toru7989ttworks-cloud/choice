@@ -293,7 +293,6 @@ HTML = """<!DOCTYPE html>
   .folder-site-item .site-actions { display:flex; gap:6px; align-items:center; }
   .page { display: none; }
   .page.active { display: block; }
-  #page-explore.active { display: flex; flex-direction: column; }
   .tab-bar {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
     background: #fff; border-top: 1px solid #e8ecf0;
@@ -403,8 +402,8 @@ HTML = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Explore page -->
-  <div class="page" id="page-explore">
+  <!-- Sites page (サイト追加 + サイト管理 統合) -->
+  <div class="page" id="page-sites">
     <div class="container">
       <div style="height:4px"></div>
       <div class="search-box">
@@ -412,52 +411,14 @@ HTML = """<!DOCTYPE html>
         <input type="text" id="explore-input" data-i18n="explore_ph" placeholder="URLまたはキーワードを入力..." onkeydown="if(event.key==='Enter')exploreGo()">
         <button onclick="clearExplore()" id="explore-clear-btn" style="background:none;border:none;font-size:18px;color:#aaa;display:none">✕</button>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
         <button onclick="exploreGo()" class="search-btn" data-i18n="open_btn" style="margin-left:0">開く</button>
         <button onclick="addFromInput()" data-i18n="add_from_btn" style="background:#e27d60;color:#fff;border:none;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:bold;cursor:pointer">＋追加</button>
+        <button onclick="openPresets()" style="background:#4a90d9;color:#fff;border:none;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:bold;cursor:pointer;white-space:nowrap">🔍 ジャンル</button>
+        <button onclick="pasteFromClipboard()" style="background:#f0f4f8;color:#555;border:1px solid #dde3ec;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:bold;cursor:pointer;white-space:nowrap">📋</button>
       </div>
       <div id="explore-results"></div>
-      <div id="explore-sites-section">
-        <div class="list-header" data-i18n="explore_open_sites">登録済みサイトを開く</div>
-        <div id="explore-sites"></div>
-      </div>
-      <div class="form-card" style="margin-top:4px">
-        <h2>🔍 ジャンルから探す</h2>
-        <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.6">ジャンルを選ぶとChoiceがサイトを検索して提案します。</p>
-        <button class="add-btn" onclick="openPresets()" style="background:#4a90d9">🔍 ジャンルから探す</button>
-      </div>
-
-      <div style="margin:16px 0 8px;background:#f0f4f8;border-radius:12px;padding:14px 16px;font-size:13px;color:#555;line-height:1.9" data-i18n-html="explore_howto">
-        <b style="color:#1a1a2e">💡 使い方</b><br>
-        ① URL またはキーワードを入力して「開く」<br>
-        ② ページを確認して「＋追加」でサイトを登録<br>
-        ③ 登録済みサイトはグループ別に一覧表示されます<br>
-        ④ グループの追加・管理は「サイト管理」タブから行えます
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Sites page -->
-  <div class="page" id="page-sites">
-    <div class="container">
-      <div style="height:4px"></div>
-      <div class="form-card" style="margin-bottom:12px">
-        <h2>🔍 ジャンルから探す</h2>
-        <p style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.6">ジャンルを選ぶとChoiceがサイトを検索して提案します。</p>
-        <button class="add-btn" onclick="openPresets()" style="background:#4a90d9">🔍 ジャンルから探す</button>
-      </div>
-      <div class="form-card">
-        <h2>サイトを検索して追加</h2>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <input type="search" id="site-search-input" placeholder="サイト名・キーワードで検索..."
-            style="flex:1;border:1px solid #dde3ec;border-radius:10px;padding:10px 12px;font-size:16px;outline:none;background:#f9fbfc"
-            onkeydown="if(event.key==='Enter')searchForSites()">
-          <button onclick="searchForSites()" id="site-search-btn"
-            style="background:#1a1a2e;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer;white-space:nowrap">検索</button>
-        </div>
-        <div id="site-search-results"></div>
-      </div>
+      <div id="site-search-results"></div>
       <div class="list-header" id="sites-header" data-i18n="sites_label">登録済みサイト</div>
       <div id="sites-list"></div>
       <div class="hint" data-i18n="crawl_hint">↺ ボタン: インデックス検索用にクロール</div>
@@ -659,10 +620,6 @@ HTML = """<!DOCTYPE html>
     <span class="tab-icon">🔍</span>
     <span data-i18n="tab_search">検索</span>
   </button>
-  <button class="tab" id="tab-explore" onclick="showPage('explore')">
-    <span class="tab-icon">🧭</span>
-    <span data-i18n="tab_explore">サイト追加</span>
-  </button>
   <button class="tab" id="tab-sites" onclick="showPage('sites')">
     <span class="tab-icon">🌐</span>
     <span data-i18n="tab_sites">サイト管理</span>
@@ -798,7 +755,6 @@ function showPage(name) {
   localStorage.setItem('ch_page', name);
   if (name === 'search') renderSearchHistory();
   if (name === 'sites') { loadSites(); loadGroupsList(); }
-  if (name === 'explore') loadExploreSites();
   if (name === 'topics') loadTopics();
   if (name === 'settings') loadSettings();
 }
@@ -1448,9 +1404,7 @@ async function exploreGo() {
   }
   document.getElementById('explore-clear-btn').style.display = '';
   const el = document.getElementById('explore-results');
-  const sec = document.getElementById('explore-sites-section');
   el.innerHTML = `<div class="loading">${t('loading')}</div>`;
-  sec.style.display = 'none';
   try {
     const data = await api('/search/explore', {
       method: 'POST',
@@ -1476,7 +1430,6 @@ function clearExplore() {
   document.getElementById('explore-input').value = '';
   document.getElementById('explore-clear-btn').style.display = 'none';
   document.getElementById('explore-results').innerHTML = '';
-  document.getElementById('explore-sites-section').style.display = '';
 }
 
 function addFromInput() {
