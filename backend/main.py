@@ -139,6 +139,22 @@ def init_db():
         conn.execute("DELETE FROM schema_version")
         conn.execute("INSERT INTO schema_version (version) VALUES (7)")
 
+    if version < 8:
+        # groups.name の UNIQUE を (user_token, name) 複合ユニークに変更
+        conn.execute("""
+            CREATE TABLE groups_v8 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_token TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL,
+                UNIQUE(user_token, name)
+            )
+        """)
+        conn.execute("INSERT OR IGNORE INTO groups_v8 (id, user_token, name) SELECT id, user_token, name FROM groups")
+        conn.execute("DROP TABLE groups")
+        conn.execute("ALTER TABLE groups_v8 RENAME TO groups")
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (8)")
+
     conn.commit()
     conn.close()
 
@@ -2538,15 +2554,16 @@ def find_or_create_group(body: dict, token: str = Depends(get_token)):
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
     conn = get_db()
-    row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
-    if row:
-        conn.close()
+    try:
+        row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
+        if row:
+            return dict(row)
+        conn.execute("INSERT OR IGNORE INTO groups (user_token, name) VALUES (?,?)", (token, name))
+        conn.commit()
+        row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
         return dict(row)
-    conn.execute("INSERT INTO groups (user_token, name) VALUES (?,?)", (token, name))
-    conn.commit()
-    row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
-    conn.close()
-    return dict(row)
+    finally:
+        conn.close()
 
 
 @app.patch("/groups/{group_id}")
