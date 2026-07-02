@@ -607,8 +607,8 @@ HTML = """<!DOCTYPE html>
 </div>
 
 <!-- 全画面ブラウザオーバーレイ -->
-<div id="browser-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:#fff;flex-direction:column">
-  <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:#1a1a2e;padding-top:calc(env(safe-area-inset-top,0px) + 8px)">
+<div id="browser-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:#fff;flex-direction:column;overflow:hidden">
+  <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:#1a1a2e;padding-top:calc(env(safe-area-inset-top,20px) + 8px);flex-shrink:0">
     <button onclick="closeBrowser()" data-i18n="close_btn" style="background:none;border:none;color:#fff;font-size:15px;padding:4px 8px;cursor:pointer;white-space:nowrap">✕ 閉じる</button>
     <div id="browser-url" style="flex:1;background:rgba(255,255,255,0.15);border-radius:10px;padding:6px 10px;font-size:12px;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <button id="browser-later-btn" onclick="saveBrowserPageForLater()" style="background:none;border:none;color:#ddd;font-size:20px;padding:4px 2px;cursor:pointer;flex-shrink:0" title="あとで読む">📌</button>
