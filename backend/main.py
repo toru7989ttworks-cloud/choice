@@ -1328,8 +1328,8 @@ async function searchForSites() {
   }
 }
 
-async function addFoundSite(siteUrl, siteName, idx) {
-  const btn = document.getElementById('found-btn-' + idx);
+async function addFoundSite(siteUrl, siteName, idx, btnEl) {
+  const btn = idx !== null ? document.getElementById('found-btn-' + idx) : btnEl;
   btn.style.opacity = '0.5';
   btn.style.pointerEvents = 'none';
   try {
@@ -1466,12 +1466,20 @@ async function exploreGo() {
       el.innerHTML = `<div class="empty"><div class="empty-icon">🌐</div>${t('no_results')}</div>`;
       return;
     }
-    el.innerHTML = data.results.map(r => `
+    el.innerHTML = data.results.map((r, i) => {
+      const origin = (() => { try { return new URL(r.url).origin; } catch(_) { return r.url; } })();
+      const siteN = (() => { try { return new URL(r.url).hostname.replace('www.',''); } catch(_) { return r.url; } })();
+      return `
       <div class="card" onclick="openBrowser('${esc(r.url)}')">
         <div class="card-title">${esc(r.title)}</div>
         ${r.excerpt ? `<div class="card-excerpt">${esc(r.excerpt)}</div>` : ''}
-        <div class="card-url">${esc(r.url)}</div>
-      </div>`).join('');
+        <div style="display:flex;align-items:center;margin-top:6px;gap:8px">
+          <div class="card-url" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url)}</div>
+          <button onclick="event.stopPropagation();addFoundSite('${esc(origin)}','${esc(siteN)}',null,this)"
+            style="border:none;border-radius:16px;font-size:13px;font-weight:bold;cursor:pointer;padding:5px 10px;white-space:nowrap;flex-shrink:0;background:#e27d60;color:#fff">＋追加</button>
+        </div>
+      </div>`;
+    }).join('');
   } catch(e) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div>${t('error_msg')}</div>`;
   }
