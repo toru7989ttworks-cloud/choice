@@ -518,7 +518,7 @@ HTML = """<!DOCTYPE html>
           <span class="api-status" id="api-status"></span>
         </h2>
         <div class="seg-ctrl" style="width:100%;margin-bottom:10px">
-          <button class="seg-btn" style="flex:1" id="provider-yahoo"  onclick="setProvider('yahoo')">Yahoo</button>
+          <button class="seg-btn" style="flex:1" id="provider-yahoo"  onclick="setProvider('yahoo')">DuckDuckGo</button>
           <button class="seg-btn" style="flex:1" id="provider-google" onclick="setProvider('google')">Google</button>
           <button class="seg-btn" style="flex:1" id="provider-brave"  onclick="setProvider('brave')">Brave</button>
         </div>
@@ -552,10 +552,10 @@ HTML = """<!DOCTYPE html>
           <input type="text" id="setting-google-cx" placeholder="a1b2c3...">
         </div>
 
-        <!-- Yahoo -->
+        <!-- DuckDuckGo -->
         <div id="pane-yahoo" style="display:none">
           <div class="step-box" style="color:#666" id="yahoo-note" data-i18n-html="yahoo_note">
-            APIキー不要。Yahoo Japan 経由で検索します。<br>
+            APIキー不要。DuckDuckGo 経由で検索します。<br>
             スニペット（説明文）は表示されません。
           </div>
         </div>
@@ -781,7 +781,7 @@ const T = {
     save_btn:'保存する', saving:'保存中...', saved:'保存しました',
     api_ok:'設定済み', api_ng:'未設定',
     key_ph:'APIキーを入力してください', key_cx_ph:'APIキーと検索エンジンIDを両方入力してください',
-    no_api_note:'APIキー未設定の場合は Yahoo Japan 経由で検索します（スニペットなし）。APIキーはこのサーバー内にのみ保存されます。',
+    no_api_note:'APIキー未設定の場合は DuckDuckGo 経由で検索します（スニペットなし）。APIキーはこのサーバー内にのみ保存されます。',
     crawl_auto_title:'🔄 サイト追加時の自動クロール', crawl_auto_hint:'「する」にするとサイト追加時に自動でインデックスを作成します。時間がかかる場合があります。', crawl_auto_off:'しない', crawl_auto_on:'する',
     adding:'追加中...', adding_crawl:'追加＆クロール中...',
     group_filter_label:'対象グループ', group_all:'すべて', group_mgmt_title:'📁 グループ管理', group_name_ph:'グループ名', group_add_btn:'追加', group_none:'グループなし', group_delete_confirm:'このグループを削除しますか？（サイトはグループなしになります）',
@@ -802,7 +802,7 @@ const T = {
     explore_howto:'<b style="color:#1a1a2e">💡 使い方</b><br>① URL またはキーワードを入力して「開く」<br>② ページを確認して「＋追加」でサイトを登録<br>③ 登録済みサイトはグループ別に一覧表示されます<br>④ グループの追加・管理は「サイト管理」タブから行えます',
     brave_steps:'<b>無料 2,000回/月</b><br>1. <b>brave.com/search/api</b> を開く<br>2. 「Get Started for Free」→ アカウント作成<br>3. 表示された API キーをコピー',
     google_steps:'<b>無料 100回/日</b><br><b>① API キー</b><br>1. console.cloud.google.com を開く<br>2. 「APIとサービス」→「認証情報」→「APIキーを作成」<br><br><b>② 検索エンジン ID</b><br>1. programmablesearchengine.google.com を開く<br>2. 新規作成 →「ウェブ全体を検索」ON → IDをコピー',
-    yahoo_note:'APIキー不要。Yahoo Japan 経由で検索します。<br>スニペット（説明文）は表示されません。',
+    yahoo_note:'APIキー不要。DuckDuckGo 経由で検索します。<br>スニペット（説明文）は表示されません。',
     shortcut_intro:'一度設定すれば、Safari の 共有ボタン → ショートカット名 をタップするだけで追加できます。',
     shortcut_steps_pre:'<b>設定手順</b><br>1. iPhone の「ショートカット」アプリを開く<br>2. 右上の <b>＋</b> をタップ<br>3. 「アクションを追加」→「URL を開く」を選択<br>4. URL 欄に以下を入力:',
     shortcut_steps_post:'5. 「ショートカット名」を <b>Choice に追加</b> にする<br>6. 右上の <b>完了</b> をタップ<br>7. ショートカットの詳細 →「共有シートに表示」をオン',
@@ -823,7 +823,7 @@ const T = {
     save_btn:'Save', saving:'Saving...', saved:'Saved',
     api_ok:'Configured', api_ng:'Not set',
     key_ph:'Please enter an API key', key_cx_ph:'Please enter both API key and Engine ID',
-    no_api_note:'Without an API key, Yahoo Japan is used (no snippets). API keys are stored on this server only.',
+    no_api_note:'Without an API key, DuckDuckGo is used (no snippets). API keys are stored on this server only.',
     crawl_auto_title:'🔄 Auto-crawl on Site Add', crawl_auto_hint:'When ON, newly added sites are crawled automatically. This may take a moment.', crawl_auto_off:'Off', crawl_auto_on:'On',
     adding:'Adding...', adding_crawl:'Adding & crawling...',
     group_filter_label:'Search group', group_all:'All', group_mgmt_title:'📁 Group Management', group_name_ph:'Group name', group_add_btn:'Add', group_none:'No group', group_delete_confirm:'Delete this group? (Sites will become ungrouped)',
@@ -844,7 +844,7 @@ const T = {
     explore_howto:'<b style="color:#1a1a2e">💡 How to Use</b><br>① Enter a URL or keyword and tap "Open"<br>② Check the page and tap "＋Add" to register<br>③ Registered sites are listed by group<br>④ Manage groups in the "Sites" tab',
     brave_steps:'<b>Free 2,000/month</b><br>1. Open <b>brave.com/search/api</b><br>2. "Get Started for Free" → Create account<br>3. Copy the API key shown',
     google_steps:'<b>Free 100/day</b><br><b>① API Key</b><br>1. Open console.cloud.google.com<br>2. "APIs & Services" → "Credentials" → "Create API Key"<br><br><b>② Search Engine ID</b><br>1. Open programmablesearchengine.google.com<br>2. Create new → Enable "Search the entire web" → Copy ID',
-    yahoo_note:'No API key required. Searches via Yahoo Japan.<br>Snippets are not shown.',
+    yahoo_note:'No API key required. Searches via DuckDuckGo.<br>Snippets are not shown.',
     shortcut_intro:'Once set up, just tap Share → Shortcut name in Safari to add sites.',
     shortcut_steps_pre:'<b>Setup steps</b><br>1. Open the "Shortcuts" app on iPhone<br>2. Tap <b>＋</b> in the top right<br>3. "Add Action" → select "Open URL"<br>4. Enter the following in the URL field:',
     shortcut_steps_post:'5. Set shortcut name to <b>Add to Choice</b><br>6. Tap <b>Done</b> in the top right<br>7. Shortcut details → enable "Show in Share Sheet"',
