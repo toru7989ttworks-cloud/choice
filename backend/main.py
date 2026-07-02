@@ -1651,8 +1651,11 @@ function renderGenres() {
     </div>`;
 }
 
+let _currentGenreLabel = '';
+
 async function discoverSites(genreId) {
   const genre = _genres.find(g => g.id === genreId);
+  _currentGenreLabel = genre ? genre.label : '';
   const el = document.getElementById('preset-list');
   el.innerHTML = `
     <button onclick="renderGenres()" style="background:none;border:none;color:#4a90d9;font-size:14px;cursor:pointer;padding:0 0 12px;display:flex;align-items:center;gap:4px">‹ ジャンル一覧</button>
@@ -1695,8 +1698,14 @@ async function addDiscoveredSite(url, name, idx) {
   btn.style.opacity = '0.6';
   btn.style.pointerEvents = 'none';
   try {
+    let group_id = null;
+    if (_currentGenreLabel) {
+      const g = await api('/groups/find-or-create', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name: _currentGenreLabel})});
+      group_id = g.id;
+    }
     await api('/sites', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({name, url, group_id: null})});
+      body: JSON.stringify({name, url, group_id})});
     btn.textContent = '登録済み';
     btn.style.background = '#e8f5e9';
     btn.style.color = '#2e7d32';
