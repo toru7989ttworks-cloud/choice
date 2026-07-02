@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Choice アプリ 公開ロードマップ</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+    background: #f4f7fb; color: #1a1a2e; line-height: 1.7; padding: 32px 16px 80px;
+  }
+  .doc {
+    max-width: 820px; margin: 0 auto; background: #fff;
+    border-radius: 16px; padding: 48px 56px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  .doc-header { margin-bottom: 40px; border-bottom: 3px solid #1a1a2e; padding-bottom: 24px; }
+  .doc-header h1 { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; }
+  .doc-header .meta { font-size: 13px; color: #888; margin-top: 6px; }
+  .doc-header .goal {
+    margin-top: 20px; background: #eef6ff; border-left: 4px solid #4a90d9;
+    padding: 12px 16px; border-radius: 0 10px 10px 0; font-size: 14px; color: #1a1a2e;
+  }
+  .doc-header .goal strong { color: #4a90d9; }
+
+  /* 現在地バナー */
+  .current-banner {
+    background: #1a1a2e; color: #fff; border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 36px; display: flex; align-items: center; gap: 12px;
+    font-size: 14px;
+  }
+  .current-banner .badge {
+    background: #4a90d9; color: #fff; font-size: 11px; font-weight: 800;
+    padding: 3px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* フェーズ */
+  .phase { margin-bottom: 36px; }
+  .phase-header {
+    display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px;
+  }
+  .phase-num {
+    width: 40px; height: 40px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-weight: 900; font-size: 16px;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .phase-num.done    { background: #e8f5e9; color: #2e7d32; }
+  .phase-num.current { background: #4a90d9; color: #fff; }
+  .phase-num.next    { background: #f0f4f8; color: #888; }
+
+  .phase-title { font-size: 19px; font-weight: 800; }
+  .phase-sub   { font-size: 13px; color: #888; margin-top: 2px; }
+  .phase-timeline {
+    display: inline-block; font-size: 12px; font-weight: 700;
+    padding: 2px 10px; border-radius: 20px; margin-top: 4px;
+  }
+  .phase-timeline.done    { background: #e8f5e9; color: #2e7d32; }
+  .phase-timeline.current { background: #fff3e0; color: #e65100; }
+  .phase-timeline.next    { background: #f0f4f8; color: #555; }
+
+  .task-list { margin-left: 56px; }
+  .task {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; border-radius: 10px; margin-bottom: 6px;
+    background: #f8fafc; border: 1px solid #e8ecf2; font-size: 14px;
+  }
+  .task.done    { background: #f1f8f2; border-color: #c8e6c9; }
+  .task.current { background: #fffbf0; border-color: #ffe0b2; }
+  .task .check  { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .task-body    { flex: 1; }
+  .task-name    { font-weight: 700; line-height: 1.4; }
+  .task-note    { font-size: 12px; color: #888; margin-top: 2px; line-height: 1.5; }
+  .task .tag {
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+  }
+  .tag.tech     { background: #e3f2fd; color: #1565c0; }
+  .tag.biz      { background: #fce4ec; color: #880e4f; }
+  .tag.design   { background: #f3e5f5; color: #6a1b9a; }
+  .tag.marketing{ background: #e8f5e9; color: #1b5e20; }
+
+  /* 収益モデル */
+  .monetize-box {
+    margin-top: 40px; border-top: 2px solid #e8ecf2; padding-top: 32px;
+  }
+  .monetize-box h2 { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+  .mono-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .mono-card {
+    background: #f8fafc; border: 1px solid #e8ecf2; border-radius: 12px; padding: 16px;
+  }
+  .mono-card h3 { font-size: 14px; font-weight: 800; margin-bottom: 6px; }
+  .mono-card p  { font-size: 13px; color: #555; line-height: 1.6; }
+  .mono-card .price { font-size: 20px; font-weight: 900; color: #4a90d9; margin-top: 8px; }
+
+  /* リスク */
+  .risk-box {
+    margin-top: 32px; background: #fff8e1; border: 1px solid #ffe082;
+    border-radius: 12px; padding: 20px 24px;
+  }
+  .risk-box h2 { font-size: 15px; font-weight: 800; margin-bottom: 12px; color: #e65100; }
+  .risk-item { font-size: 13px; margin-bottom: 8px; padding-left: 16px; position: relative; }
+  .risk-item::before { content: '⚠'; position: absolute; left: 0; }
+
+  .divider { height: 1px; background: #e8ecf2; margin: 8px 0 20px; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .doc { box-shadow: none; border-radius: 0; padding: 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="doc-header">
+    <h1>Choice アプリ 公開ロードマップ</h1>
+    <div class="meta">作成日: 2026年7月2日</div>
+    <div class="goal">
+      <strong>ゴール:</strong> アプリを公開し、継続的な収益を得る<br>
+      <strong>コンセプト:</strong> 好きなサイトだけをまとめてキーワード検索できる iOS Web アプリ（PWA）
+    </div>
+  </div>
+
+  <div class="current-banner">
+    <span class="badge">現在地</span>
+    フェーズ 1（アプリ開発）の終盤。コア機能は完成、公開準備フェーズへ移行する段階。
+  </div>
+
+  <!-- Phase 1 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num done">✓</div>
+      <div>
+        <div class="phase-title">フェーズ 1：アプリ開発</div>
+        <div class="phase-sub">コア機能の実装</div>
+        <span class="phase-timeline done">完了</span>
+      </div>
+    </div>
+    <div class="task-list">
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">コア検索機能</div>
+          <div class="task-note">登録サイトを横断検索（Brave / Google CSE / Yahoo 対応）</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">サイト管理・グループ管理</div>
+          <div class="task-note">追加・削除・クロール・インデックス構築</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">トピック・あとで読む</div>
+          <div class="task-note">登録サイトの新着記事フィード、ブックマーク機能</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">マルチユーザー対応</div>
+          <div class="task-note">user_token によるデータ分離。複数人が同一サーバーを使える</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">ライセンスキー認証の UI</div>
+          <div class="task-note">プレミアム機能の UI は実装済み（バックエンド接続は未完）</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">ランディングページ</div>
+          <div class="task-note">docs/index.html。通知メール受付フォームあり（未接続）</div>
+        </div>
+        <span class="tag design">デザイン</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Phase 2 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num current">2</div>
+      <div>
+        <div class="phase-title">フェーズ 2：公開準備</div>
+        <div class="phase-sub">HTTPS・PWA・デプロイ・決済の整備</div>
+        <span class="phase-timeline current">目安: 1〜2 週間</span>
+      </div>
+    </div>
+    <div class="task-list">
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">manifest.json の追加</div>
+          <div class="task-note">アプリ名・アイコン・テーマカラーを定義。ホーム画面追加ダイアログに必須。</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">アプリアイコン作成</div>
+          <div class="task-note">192×192 / 512×512 px の PNG（iOS 用 180×180 も）</div>
+        </div>
+        <span class="tag design">デザイン</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">Railway / Render へのデプロイ</div>
+          <div class="task-note">HTTPS が自動付与される。Dockerfile または nixpacks で構築。</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">SQLite 永続化（ボリューム設定）</div>
+          <div class="task-note">Railway の Persistent Volume（$0.25/GB/月）か Fly.io の無料ボリュームで解決</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">Stripe 決済の組み込み</div>
+          <div class="task-note">ライセンスキー購入フロー。購入完了でキー自動発行 → メール送信</div>
+        </div>
+        <span class="tag biz">ビジネス</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">プライバシーポリシー・利用規約ページ</div>
+          <div class="task-note">Stripe 利用・App Store 審査・信頼感のために必要</div>
+        </div>
+        <span class="tag biz">ビジネス</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">ランディングページ公開（GitHub Pages）</div>
+          <div class="task-note">docs/index.html をそのまま GitHub Pages で公開。カスタムドメインも可。</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task current">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">通知メールフォームの接続</div>
+          <div class="task-note">Google Forms か Supabase に繋いで、リリース待ち登録を機能させる</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Phase 3 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num next">3</div>
+      <div>
+        <div class="phase-title">フェーズ 3：ベータ公開</div>
+        <div class="phase-sub">少人数で試してもらい、品質を上げる</div>
+        <span class="phase-timeline next">目安: 2〜4 週間</span>
+      </div>
+    </div>
+    <div class="task-list">
+      <div class="task">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">知人・SNS フォロワーへの案内</div>
+          <div class="task-note">URL を共有してフィードバックをもらう（無料開放 or 無料キー配布）</div>
+        </div>
+        <span class="tag marketing">集客</span>
+      </div>
+      <div class="task">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">フィードバック収集・バグ修正</div>
+          <div class="task-note">実際の使用パターンをもとに UI/UX を改善</div>
+        </div>
+        <span class="tag biz">ビジネス</span>
+      </div>
+      <div class="task">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">パフォーマンス・安定性の確認</div>
+          <div class="task-note">複数人同時利用でのレスポンスタイム・エラー率のチェック</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Phase 4 -->
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num next">4</div>
+      <div>
+        <div class="phase-title">フェーズ 4：正式公開・収益化</div>
+        <div class="phase-sub">有料プランの案内と集客</div>
+        <span class="phase-timeline next">目安: ベータ後 2〜4 週間</span>
+      </div>
+    </div>
+    <div class="task-list">
+      <div class="task">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">有料プラン（プレミアム）の正式開始</div>
+          <div class="task-note">Stripe 決済 → ライセンスキー発行 → メール送信の自動化</div>
+        </div>
+        <span class="tag biz">ビジネス</span>
+      </div>
+      <div class="task">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">X（Twitter）・note での情報発信</div>
+          <div class="task-note">パチスロ・競馬等のターゲットコミュニティへのリーチ</div>
+        </div>
+        <span class="tag marketing">集客</span>
+      </div>
+      <div class="task">
+        <span class="check">🔲</span>
+        <div class="task-body">
+          <div class="task-name">ランディングページの SEO 対策</div>
+          <div class="task-note">「パチスロ 検索 まとめ」等の検索流入を狙う</div>
+        </div>
+        <span class="tag marketing">集客</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 収益モデル -->
+  <div class="monetize-box">
+    <h2>💰 収益モデル案</h2>
+    <div class="mono-grid">
+      <div class="mono-card">
+        <h3>🆓 無料プラン</h3>
+        <p>登録サイト数制限あり（例: 3件まで）<br>
+           Yahoo検索のみ（APIキー不要）<br>
+           広告なし・制限のみで差別化</p>
+      </div>
+      <div class="mono-card">
+        <h3>⭐ プレミアム（買い切り）</h3>
+        <p>サイト無制限登録<br>
+           Brave / Google API 対応<br>
+           トピック・あとで読む機能</p>
+        <div class="price">¥980 〜 ¥1,980</div>
+      </div>
+      <div class="mono-card">
+        <h3>🔄 サブスク案（将来）</h3>
+        <p>サーバー費用込みで提供<br>
+           APIキー不要で使えるプラン<br>
+           Brave API 費用を吸収</p>
+        <div class="price">¥300 〜 ¥500/月</div>
+      </div>
+      <div class="mono-card">
+        <h3>📦 Stripe 決済フロー</h3>
+        <p>ランディングページ → Stripe 購入<br>
+           → ライセンスキー自動発行<br>
+           → メールで送付 → アプリ内で認証</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- リスク -->
+  <div class="risk-box">
+    <h2>⚠ 主なリスクと対策</h2>
+    <div class="risk-item">
+      <strong>SQLite の永続化:</strong> Railway/Render はデプロイごとにリセット。
+      → Persistent Volume（有料）または Fly.io の無料ボリュームで対応。
+    </div>
+    <div class="risk-item">
+      <strong>curl_cffi のビルド:</strong> ネイティブコードを含むためプラットフォームによってはビルド失敗あり。
+      → Dockerfile で事前ビルドを指定すれば回避可能。
+    </div>
+    <div class="risk-item">
+      <strong>Yahoo検索のスクレイピング:</strong> HTML構造変更やブロックのリスク。
+      → 無料ユーザーへの提供のみに留め、有料ユーザーは Brave/Google に誘導。
+    </div>
+    <div class="risk-item">
+      <strong>Safari の PWA 制限:</strong> iOS Safari は Service Worker に制限あり。
+      → manifest.json とアイコン整備で「ホーム画面追加」の体験は確保できる。
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

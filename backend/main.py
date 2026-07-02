@@ -9,6 +9,7 @@ import json
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
+from pathlib import Path
 from curl_cffi import requests as cffi_requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +17,8 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from typing import Optional
 
-DB_PATH = "sites.db"
+import os
+DB_PATH = os.environ.get("DB_PATH", "sites.db")
 
 
 def get_db():
@@ -118,6 +120,25 @@ def init_db():
         )
     """)
 
+    if version < 7:
+        # user_token を各テーブルに追加
+        for stmt in [
+            "ALTER TABLE sites ADD COLUMN user_token TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE groups ADD COLUMN user_token TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE topics ADD COLUMN user_token TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE read_later ADD COLUMN user_token TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE topic_reads ADD COLUMN user_token TEXT NOT NULL DEFAULT ''",
+        ]:
+            try: conn.execute(stmt)
+            except: pass
+        # settings テーブルを再作成（PRIMARY KEY を (user_token, key) に変更）
+        conn.execute("CREATE TABLE IF NOT EXISTS settings_v7 (user_token TEXT NOT NULL DEFAULT '', key TEXT NOT NULL, value TEXT NOT NULL DEFAULT '', PRIMARY KEY (user_token, key))")
+        conn.execute("INSERT OR IGNORE INTO settings_v7 (user_token, key, value) SELECT '', key, value FROM settings")
+        conn.execute("DROP TABLE settings")
+        conn.execute("ALTER TABLE settings_v7 RENAME TO settings")
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (7)")
+
     conn.commit()
     conn.close()
 
@@ -137,6 +158,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Depends
+
+def get_token(request: Request) -> str:
+    token = request.headers.get("X-User-Token", "").strip()
+    if not token or len(token) < 16:
+        raise HTTPException(401, "ユーザートークンが必要です")
+    return token
+
 HTML = """<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -145,6 +174,9 @@ HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Choice">
+<meta name="theme-color" content="#1a1a2e">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <title>Choice</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -501,6 +533,23 @@ HTML = """<!DOCTYPE html>
     <div class="container">
       <div style="height:2px"></div>
 
+      <div class="form-card" id="license-card">
+        <h2>🔑 ライセンス
+          <span id="license-badge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px"></span>
+        </h2>
+        <div id="license-free-section">
+          <p style="font-size:13px;color:#888;margin-bottom:10px">プレミアムキーを入力するとすべての機能が使えます。</p>
+          <input type="text" id="license-key-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX" style="font-size:14px;font-family:monospace;letter-spacing:1px">
+          <button class="add-btn" onclick="activateLicense()" style="margin-top:8px">認証する</button>
+          <p id="license-error" style="font-size:12px;color:#e53935;margin-top:6px;display:none"></p>
+        </div>
+        <div id="license-premium-section" style="display:none">
+          <p style="font-size:13px;color:#4caf50;margin-bottom:10px">✅ プレミアム版が有効です。</p>
+          <p id="license-key-hint" style="font-size:12px;color:#aaa;font-family:monospace;margin-bottom:10px"></p>
+          <button onclick="deactivateLicense()" style="background:none;border:1px solid #dde3ec;color:#888;padding:6px 14px;border-radius:10px;font-size:13px;cursor:pointer">ライセンスを解除</button>
+        </div>
+      </div>
+
       <div class="form-card">
         <h2 data-i18n="api_title">🔍 検索 API
           <span class="api-status" id="api-status"></span>
@@ -708,9 +757,27 @@ function setMode(mode) {
   document.getElementById('mode-' + mode)?.classList.add('active');
 }
 
+function getOrCreateToken() {
+  let t = localStorage.getItem('ch_token');
+  if (!t || t.length < 16) {
+    t = 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+    localStorage.setItem('ch_token', t);
+  }
+  return t;
+}
+const USER_TOKEN = getOrCreateToken();
+
 async function api(path, opts={}) {
+  opts.headers = Object.assign({'X-User-Token': USER_TOKEN}, opts.headers || {});
   const res = await fetch(API + path, opts);
-  if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
+  if (!res.ok) {
+    let msg = `エラー (${res.status})`;
+    try { const j = await res.json(); msg = j.detail || j.message || msg; } catch(_) {}
+    throw new Error(msg);
+  }
   return res.json();
 }
 
@@ -947,11 +1014,11 @@ function applyProviderUI(provider) {
 
 // ── 設定 読み込み / 保存 ────────────────────────────────
 async function loadSettings() {
-  const [braveKey, googleKey, googleCx, providerData, langData, autoCrawlData, darkModeData] = await Promise.all([
+  const [braveKey, googleKey, googleCx, providerData, langData, autoCrawlData, darkModeData, licenseData] = await Promise.all([
     api('/settings/brave_api_key'), api('/settings/google_api_key'),
     api('/settings/google_cx'),    api('/settings/search_provider'),
     api('/settings/app_lang'),     api('/settings/auto_crawl'),
-    api('/settings/dark_mode'),
+    api('/settings/dark_mode'),    api('/license/status'),
   ]);
   currentProvider = providerData.value || 'yahoo';
   appLang = langData.value || 'ja';
@@ -970,6 +1037,45 @@ async function loadSettings() {
     document.getElementById(id).value = '';
   });
   updateApiStatus(currentProvider, braveKey.value, googleKey.value, googleCx.value);
+  applyLicenseUI(licenseData);
+}
+
+function applyLicenseUI(data) {
+  const isPremium = data && data.status === 'premium';
+  const badge = document.getElementById('license-badge');
+  badge.textContent = isPremium ? 'PREMIUM' : 'FREE';
+  badge.style.background = isPremium ? '#4caf50' : '#e0e0e0';
+  badge.style.color = isPremium ? '#fff' : '#888';
+  document.getElementById('license-free-section').style.display    = isPremium ? 'none' : '';
+  document.getElementById('license-premium-section').style.display = isPremium ? '' : 'none';
+  if (isPremium && data.key_hint) {
+    document.getElementById('license-key-hint').textContent = data.key_hint;
+  }
+}
+
+async function activateLicense() {
+  const key = document.getElementById('license-key-input').value.trim();
+  const errEl = document.getElementById('license-error');
+  errEl.style.display = 'none';
+  if (!key) { errEl.textContent = 'キーを入力してください'; errEl.style.display = ''; return; }
+  try {
+    const res = await api('/license/activate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key}),
+    });
+    applyLicenseUI(res);
+    document.getElementById('license-key-input').value = '';
+  } catch(e) {
+    errEl.textContent = e.message || '認証に失敗しました';
+    errEl.style.display = '';
+  }
+}
+
+async function deactivateLicense() {
+  if (!confirm('ライセンスを解除しますか？')) return;
+  const res = await api('/license', {method: 'DELETE'});
+  applyLicenseUI(res);
 }
 
 async function saveSettings() {
@@ -1238,6 +1344,7 @@ async function addFoundSite(siteUrl, siteName, idx) {
   } catch(e) {
     btn.style.opacity = '1';
     btn.style.pointerEvents = 'auto';
+    alert(e.message);
   }
 }
 
@@ -1325,8 +1432,10 @@ async function addBrowserSite() {
     loadGroupChips();
     setTimeout(() => { btn.textContent = t('add_site_btn'); btn.style.background = '#e27d60'; btn.disabled = false; }, 2000);
   } catch(e) {
-    btn.textContent = 'エラー';
-    setTimeout(() => { btn.textContent = t('add_site_btn'); btn.style.background = '#e27d60'; btn.disabled = false; }, 2000);
+    btn.textContent = t('add_site_btn');
+    btn.style.background = '#e27d60';
+    btn.disabled = false;
+    alert(e.message);
   }
 }
 
@@ -1966,6 +2075,76 @@ def extract_links(base_url: str, body: str) -> list[str]:
     return list(set(links))
 
 
+# ── License ──────────────────────────────────────────────
+# Gumroad の Product Permalink。Gumroad 設定後に入力する。
+GUMROAD_PRODUCT_ID = ""
+FREE_SITE_LIMIT = 5
+
+
+def _get_license_status(conn, token: str) -> str:
+    row = conn.execute("SELECT value FROM settings WHERE user_token=? AND key='license_status'", (token,)).fetchone()
+    return row["value"] if row else "free"
+
+
+@app.get("/license/status")
+def license_status(token: str = Depends(get_token)):
+    conn = get_db()
+    status = _get_license_status(conn, token)
+    key_row = conn.execute("SELECT value FROM settings WHERE user_token=? AND key='license_key'", (token,)).fetchone()
+    conn.close()
+    key = key_row["value"] if key_row else ""
+    hint = (key[:4] + "-****-****") if len(key) > 4 else ""
+    return {"status": status, "key_hint": hint}
+
+
+@app.post("/license/activate")
+def activate_license(body: dict, token: str = Depends(get_token)):
+    key = (body.get("key") or "").strip().upper()
+    if not key:
+        raise HTTPException(400, "ライセンスキーを入力してください")
+
+    if GUMROAD_PRODUCT_ID:
+        data = urllib.parse.urlencode({
+            "product_id": GUMROAD_PRODUCT_ID,
+            "license_key": key,
+            "increment_uses_count": "false",
+        }).encode()
+        try:
+            req = urllib.request.Request(
+                "https://api.gumroad.com/v2/licenses/verify",
+                data=data,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                result = json.loads(resp.read())
+            if not result.get("success"):
+                raise HTTPException(400, "無効なライセンスキーです")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(500, f"認証サーバーに接続できません: {str(e)[:60]}")
+    else:
+        if len(key) < 8:
+            raise HTTPException(400, "無効なライセンスキーです")
+
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO settings (user_token,key,value) VALUES (?,'license_key',?)", (token, key))
+    conn.execute("INSERT OR REPLACE INTO settings (user_token,key,value) VALUES (?,'license_status','premium')", (token,))
+    conn.commit()
+    conn.close()
+    return {"status": "premium"}
+
+
+@app.delete("/license")
+def deactivate_license(token: str = Depends(get_token)):
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO settings (user_token,key,value) VALUES (?,'license_key','')", (token,))
+    conn.execute("INSERT OR REPLACE INTO settings (user_token,key,value) VALUES (?,'license_status','free')", (token,))
+    conn.commit()
+    conn.close()
+    return {"status": "free"}
+
+
 GENRE_LIST = [
     {"id":"pachinko", "label":"🎰 パチスロ・パチンコ", "query":"パチスロ パチンコ 攻略 情報 おすすめサイト"},
     {"id":"keiba",    "label":"🏇 競馬",               "query":"競馬 予想 攻略 情報 おすすめサイト"},
@@ -2175,6 +2354,34 @@ def proxy(url: str):
     )
 
 
+@app.get("/manifest.json")
+def manifest():
+    data = {
+        "name": "Choice",
+        "short_name": "Choice",
+        "description": "好きなサイトだけをまとめてキーワード検索",
+        "start_url": "/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#1a1a2e",
+        "theme_color": "#1a1a2e",
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+        ],
+    }
+    return Response(content=json.dumps(data), media_type="application/manifest+json")
+
+
+@app.get("/icon-{size}.png")
+def icon(size: int):
+    path = Path(__file__).parent / f"icon-{size}.png"
+    if not path.exists():
+        raise HTTPException(404)
+    return Response(content=path.read_bytes(), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     return HTMLResponse(content=HTML, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
@@ -2185,36 +2392,37 @@ class SettingUpdate(BaseModel):
 
 
 @app.get("/settings/{key}")
-def get_setting(key: str):
+def get_setting(key: str, token: str = Depends(get_token)):
     conn = get_db()
-    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    row = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone()
     conn.close()
     return {"value": row["value"] if row else ""}
 
 
 @app.post("/settings/{key}")
-def save_setting(key: str, body: SettingUpdate):
+def save_setting(key: str, body: SettingUpdate, token: str = Depends(get_token)):
     conn = get_db()
-    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, body.value))
+    conn.execute("INSERT OR REPLACE INTO settings (user_token, key, value) VALUES (?,?,?)", (token, key, body.value))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
 @app.get("/groups")
-def list_groups():
+def list_groups(token: str = Depends(get_token)):
     conn = get_db()
     rows = conn.execute("""
         SELECT g.id, g.name, COUNT(s.id) as site_count
-        FROM groups g LEFT JOIN sites s ON s.group_id = g.id
+        FROM groups g LEFT JOIN sites s ON s.group_id = g.id AND s.user_token=?
+        WHERE g.user_token=?
         GROUP BY g.id ORDER BY g.name
-    """).fetchall()
+    """, (token, token)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 @app.get("/topics")
-def get_topics(group_id: Optional[int] = None):
+def get_topics(group_id: Optional[int] = None, token: str = Depends(get_token)):
     conn = get_db()
     if group_id:
         rows = conn.execute("""
@@ -2222,31 +2430,32 @@ def get_topics(group_id: Optional[int] = None):
                    CASE WHEN tr.url IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM topics t
             JOIN sites s ON s.id = t.site_id
-            LEFT JOIN topic_reads tr ON tr.url = t.url
-            WHERE s.group_id = ?
+            LEFT JOIN topic_reads tr ON tr.url = t.url AND tr.user_token=?
+            WHERE t.user_token=? AND s.group_id=?
             ORDER BY t.id DESC LIMIT 50
-        """, (group_id,)).fetchall()
+        """, (token, token, group_id)).fetchall()
     else:
         rows = conn.execute("""
             SELECT t.id, t.url, t.title, t.published_at, t.fetched_at, s.name as site_name,
                    CASE WHEN tr.url IS NOT NULL THEN 1 ELSE 0 END as is_read
             FROM topics t
             JOIN sites s ON s.id = t.site_id
-            LEFT JOIN topic_reads tr ON tr.url = t.url
+            LEFT JOIN topic_reads tr ON tr.url = t.url AND tr.user_token=?
+            WHERE t.user_token=?
             ORDER BY t.id DESC LIMIT 50
-        """).fetchall()
+        """, (token, token)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 @app.post("/topics/refresh")
-def refresh_topics(body: dict):
+def refresh_topics(body: dict, token: str = Depends(get_token)):
     group_id = body.get("group_id")
     conn = get_db()
     if group_id:
-        sites = conn.execute("SELECT * FROM sites WHERE group_id = ?", (group_id,)).fetchall()
+        sites = conn.execute("SELECT * FROM sites WHERE user_token=? AND group_id=?", (token, group_id)).fetchall()
     else:
-        sites = conn.execute("SELECT * FROM sites").fetchall()
+        sites = conn.execute("SELECT * FROM sites WHERE user_token=?", (token,)).fetchall()
     conn.close()
     if not sites:
         return {"ok": True, "count": 0}
@@ -2263,56 +2472,53 @@ def refresh_topics(body: dict):
     all_topics = all_topics[:50]
     conn = get_db()
     site_ids = [s["id"] for s in sites]
-    conn.execute(f"DELETE FROM topics WHERE site_id IN ({','.join('?'*len(site_ids))})", site_ids)
+    conn.execute(f"DELETE FROM topics WHERE user_token=? AND site_id IN ({','.join('?'*len(site_ids))})", [token] + site_ids)
     for t in all_topics:
-        conn.execute("INSERT INTO topics (site_id, url, title, published_at) VALUES (?,?,?,?)",
-                     (t["site_id"], t["url"], t["title"], t.get("published_at", "")))
+        conn.execute("INSERT INTO topics (user_token, site_id, url, title, published_at) VALUES (?,?,?,?,?)",
+                     (token, t["site_id"], t["url"], t["title"], t.get("published_at", "")))
     conn.commit()
     conn.close()
     return {"ok": True, "count": len(all_topics)}
 
 
 @app.post("/topics/read")
-def mark_read(body: dict):
+def mark_read(body: dict, token: str = Depends(get_token)):
     url = body.get("url", "")
     if not url:
         raise HTTPException(status_code=400, detail="url required")
     conn = get_db()
-    conn.execute("INSERT OR IGNORE INTO topic_reads (url) VALUES (?)", (url,))
+    conn.execute("INSERT OR IGNORE INTO topic_reads (user_token, url) VALUES (?,?)", (token, url))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
 @app.get("/read-later")
-def get_read_later():
+def get_read_later(token: str = Depends(get_token)):
     conn = get_db()
-    rows = conn.execute("SELECT * FROM read_later ORDER BY added_at DESC").fetchall()
+    rows = conn.execute("SELECT * FROM read_later WHERE user_token=? ORDER BY added_at DESC", (token,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 @app.post("/read-later", status_code=201)
-def add_read_later(body: dict):
+def add_read_later(body: dict, token: str = Depends(get_token)):
     url = (body.get("url") or "").strip()
     title = (body.get("title") or url).strip()
     site_name = (body.get("site_name") or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="url required")
     conn = get_db()
-    try:
-        conn.execute("INSERT INTO read_later (url, title, site_name) VALUES (?, ?, ?)", (url, title, site_name))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        pass
+    conn.execute("INSERT OR REPLACE INTO read_later (user_token, url, title, site_name) VALUES (?,?,?,?)", (token, url, title, site_name))
+    conn.commit()
     conn.close()
     return {"ok": True}
 
 
 @app.delete("/read-later/{item_id}")
-def delete_read_later(item_id: int):
+def delete_read_later(item_id: int, token: str = Depends(get_token)):
     conn = get_db()
-    conn.execute("DELETE FROM read_later WHERE id = ?", (item_id,))
+    conn.execute("DELETE FROM read_later WHERE id=? AND user_token=?", (item_id, token))
     conn.commit()
     conn.close()
     return {"ok": True}
@@ -2322,60 +2528,61 @@ class GroupCreate(BaseModel):
     name: str
 
 @app.post("/groups", status_code=201)
-def create_group(body: GroupCreate):
+def create_group(body: GroupCreate, token: str = Depends(get_token)):
     conn = get_db()
-    try:
-        conn.execute("INSERT INTO groups (name) VALUES (?)", (body.name.strip(),))
-        conn.commit()
-        row = conn.execute("SELECT * FROM groups WHERE name = ?", (body.name.strip(),)).fetchone()
-        conn.close()
-        return dict(row)
-    except sqlite3.IntegrityError:
+    name = body.name.strip()
+    existing = conn.execute("SELECT id FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
+    if existing:
         conn.close()
         raise HTTPException(status_code=409, detail="同じ名前のグループが存在します")
+    conn.execute("INSERT INTO groups (user_token, name) VALUES (?,?)", (token, name))
+    conn.commit()
+    row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
+    conn.close()
+    return dict(row)
 
 @app.post("/groups/find-or-create", status_code=200)
-def find_or_create_group(body: dict):
+def find_or_create_group(body: dict, token: str = Depends(get_token)):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
     conn = get_db()
-    row = conn.execute("SELECT * FROM groups WHERE name = ?", (name,)).fetchone()
+    row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
     if row:
         conn.close()
         return dict(row)
-    conn.execute("INSERT INTO groups (name) VALUES (?)", (name,))
+    conn.execute("INSERT INTO groups (user_token, name) VALUES (?,?)", (token, name))
     conn.commit()
-    row = conn.execute("SELECT * FROM groups WHERE name = ?", (name,)).fetchone()
+    row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
     conn.close()
     return dict(row)
 
 
 @app.patch("/groups/{group_id}")
-def rename_group(group_id: int, body: dict):
+def rename_group(group_id: int, body: dict, token: str = Depends(get_token)):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
     conn = get_db()
-    existing = conn.execute("SELECT id FROM groups WHERE name = ? AND id != ?", (name, group_id)).fetchone()
+    existing = conn.execute("SELECT id FROM groups WHERE user_token=? AND name=? AND id!=?", (token, name, group_id)).fetchone()
     if existing:
         conn.close()
         raise HTTPException(status_code=400, detail="同じ名前のグループが既に存在します")
-    conn.execute("UPDATE groups SET name = ? WHERE id = ?", (name, group_id))
+    conn.execute("UPDATE groups SET name=? WHERE id=? AND user_token=?", (name, group_id, token))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
 @app.get("/search-sites")
-def search_sites_endpoint(q: str):
+def search_sites_endpoint(q: str, token: str = Depends(get_token)):
     conn = get_db()
-    def s(key): r = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone(); return r["value"] if r else None
+    def s(key): r = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone(); return r["value"] if r else None
     provider  = s("search_provider") or "yahoo"
     brave_key = s("brave_api_key")
     google_key = s("google_api_key")
     google_cx  = s("google_cx")
-    registered_rows = conn.execute("SELECT url FROM sites").fetchall()
+    registered_rows = conn.execute("SELECT url FROM sites WHERE user_token=?", (token,)).fetchall()
     conn.close()
 
     registered_origins = set()
@@ -2464,13 +2671,13 @@ def get_genres():
 
 
 @app.get("/discover")
-def discover(genre: str):
+def discover(genre: str, token: str = Depends(get_token)):
     genre_item = next((g for g in GENRE_LIST if g["id"] == genre), None)
     if not genre_item:
         raise HTTPException(status_code=404, detail="ジャンルが見つかりません")
 
     conn = get_db()
-    registered_rows = conn.execute("SELECT url FROM sites").fetchall()
+    registered_rows = conn.execute("SELECT url FROM sites WHERE user_token=?", (token,)).fetchall()
     conn.close()
     registered_origins = set()
     for r in registered_rows:
@@ -2530,23 +2737,24 @@ def discover(genre: str):
 
 
 @app.delete("/groups/{group_id}")
-def delete_group(group_id: int):
+def delete_group(group_id: int, token: str = Depends(get_token)):
     conn = get_db()
-    conn.execute("UPDATE sites SET group_id = NULL WHERE group_id = ?", (group_id,))
-    conn.execute("DELETE FROM groups WHERE id = ?", (group_id,))
+    conn.execute("UPDATE sites SET group_id=NULL WHERE group_id=? AND user_token=?", (group_id, token))
+    conn.execute("DELETE FROM groups WHERE id=? AND user_token=?", (group_id, token))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
 @app.get("/sites")
-def list_sites():
+def list_sites(token: str = Depends(get_token)):
     conn = get_db()
     rows = conn.execute("""
         SELECT s.*, g.name as group_name
         FROM sites s LEFT JOIN groups g ON g.id = s.group_id
+        WHERE s.user_token=?
         ORDER BY s.created_at DESC
-    """).fetchall()
+    """, (token,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -2555,58 +2763,60 @@ class SiteUpdate(BaseModel):
     group_id: Optional[int] = None
 
 @app.patch("/sites/{site_id}")
-def update_site(site_id: int, body: SiteUpdate):
+def update_site(site_id: int, body: SiteUpdate, token: str = Depends(get_token)):
     conn = get_db()
-    conn.execute("UPDATE sites SET group_id = ? WHERE id = ?", (body.group_id, site_id))
+    conn.execute("UPDATE sites SET group_id=? WHERE id=? AND user_token=?", (body.group_id, site_id, token))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
 @app.post("/sites", status_code=201)
-def add_site(site: SiteCreate):
+def add_site(site: SiteCreate, token: str = Depends(get_token)):
     url = site.url.rstrip("/")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     conn = get_db()
-    cur = conn.execute("INSERT INTO sites (name, url, group_id) VALUES (?, ?, ?)", (site.name, url, site.group_id))
+    if _get_license_status(conn, token) != "premium":
+        count = conn.execute("SELECT COUNT(*) as c FROM sites WHERE user_token=?", (token,)).fetchone()["c"]
+        if count >= FREE_SITE_LIMIT:
+            conn.close()
+            raise HTTPException(403, f"無料版はサイトを{FREE_SITE_LIMIT}件まで登録できます。プレミアムにアップグレードしてください。")
+    cur = conn.execute("INSERT INTO sites (user_token, name, url, group_id) VALUES (?,?,?,?)", (token, site.name, url, site.group_id))
     conn.commit()
     site_id = cur.lastrowid
     conn.close()
 
     conn2 = get_db()
-    auto = conn2.execute("SELECT value FROM settings WHERE key='auto_crawl'").fetchone()
+    auto = conn2.execute("SELECT value FROM settings WHERE user_token=? AND key='auto_crawl'", (token,)).fetchone()
     conn2.close()
     if auto and auto["value"] == "on":
-        crawl_site(site_id)
+        _do_crawl(site_id)
     return {"id": site_id, "name": site.name, "url": url}
 
 
 @app.delete("/sites/{site_id}")
-def delete_site(site_id: int):
+def delete_site(site_id: int, token: str = Depends(get_token)):
     conn = get_db()
-    conn.execute("DELETE FROM pages WHERE site_id = ?", (site_id,))
-    conn.execute("DELETE FROM sites WHERE id = ?", (site_id,))
+    conn.execute("DELETE FROM pages WHERE site_id=?", (site_id,))
+    conn.execute("DELETE FROM sites WHERE id=? AND user_token=?", (site_id, token))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
-@app.post("/crawl/{site_id}")
-def crawl_site(site_id: int, max_pages: int = 30):
+def _do_crawl(site_id: int, max_pages: int = 30):
     conn = get_db()
-    row = conn.execute("SELECT * FROM sites WHERE id = ?", (site_id,)).fetchone()
+    row = conn.execute("SELECT * FROM sites WHERE id=?", (site_id,)).fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Site not found")
+        conn.close()
+        return {"indexed": 0, "site_id": site_id}
     base_url = row["url"]
-
-    conn.execute("DELETE FROM pages WHERE site_id = ?", (site_id,))
+    conn.execute("DELETE FROM pages WHERE site_id=?", (site_id,))
     conn.commit()
-
     visited = set()
     queue = [base_url]
     indexed = 0
-
     while queue and indexed < max_pages:
         url = queue.pop(0)
         if url in visited:
@@ -2614,10 +2824,7 @@ def crawl_site(site_id: int, max_pages: int = 30):
         visited.add(url)
         try:
             title, text, body = fetch_page(url)
-            conn.execute(
-                "INSERT INTO pages (site_id, url, title, content) VALUES (?, ?, ?, ?)",
-                (site_id, url, title, text),
-            )
+            conn.execute("INSERT INTO pages (site_id, url, title, content) VALUES (?,?,?,?)", (site_id, url, title, text))
             conn.commit()
             indexed += 1
             for link in extract_links(base_url, body):
@@ -2625,9 +2832,18 @@ def crawl_site(site_id: int, max_pages: int = 30):
                     queue.append(link)
         except Exception:
             continue
-
     conn.close()
     return {"indexed": indexed, "site_id": site_id}
+
+
+@app.post("/crawl/{site_id}")
+def crawl_site(site_id: int, max_pages: int = 30, token: str = Depends(get_token)):
+    conn = get_db()
+    row = conn.execute("SELECT id FROM sites WHERE id=? AND user_token=?", (site_id, token)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Site not found")
+    return _do_crawl(site_id, max_pages)
 
 
 def parse_search_query(query: str):
@@ -2638,12 +2854,12 @@ def parse_search_query(query: str):
 
 
 @app.post("/search")
-def search(req: SearchRequest):
+def search(req: SearchRequest, token: str = Depends(get_token)):
     conn = get_db()
     if req.group_id:
-        sites = conn.execute("SELECT * FROM sites WHERE group_id = ?", (req.group_id,)).fetchall()
+        sites = conn.execute("SELECT * FROM sites WHERE user_token=? AND group_id=?", (token, req.group_id)).fetchall()
     else:
-        sites = conn.execute("SELECT * FROM sites").fetchall()
+        sites = conn.execute("SELECT * FROM sites WHERE user_token=?", (token,)).fetchall()
     if not sites:
         conn.close()
         raise HTTPException(status_code=400, detail="サイトが登録されていません")
@@ -2699,13 +2915,13 @@ def search(req: SearchRequest):
 
 
 @app.post("/search/web")
-def search_web(req: SearchRequest):
+def search_web(req: SearchRequest, token: str = Depends(get_token)):
     conn = get_db()
     if req.group_id:
-        sites = conn.execute("SELECT * FROM sites WHERE group_id = ?", (req.group_id,)).fetchall()
+        sites = conn.execute("SELECT * FROM sites WHERE user_token=? AND group_id=?", (token, req.group_id)).fetchall()
     else:
-        sites = conn.execute("SELECT * FROM sites").fetchall()
-    def s(key): r = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone(); return r["value"] if r else None
+        sites = conn.execute("SELECT * FROM sites WHERE user_token=?", (token,)).fetchall()
+    def s(key): r = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone(); return r["value"] if r else None
     provider    = s("search_provider") or "brave"
     brave_key   = s("brave_api_key")
     google_key  = s("google_api_key")
@@ -2776,9 +2992,9 @@ def search_web(req: SearchRequest):
 
 
 @app.post("/search/explore")
-def search_explore(req: SearchRequest):
+def search_explore(req: SearchRequest, token: str = Depends(get_token)):
     conn = get_db()
-    def sv(key): r = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone(); return r["value"] if r else None
+    def sv(key): r = conn.execute("SELECT value FROM settings WHERE user_token=? AND key=?", (token, key)).fetchone(); return r["value"] if r else None
     provider   = sv("search_provider") or "brave"
     brave_key  = sv("brave_api_key")
     google_key = sv("google_api_key")
