@@ -181,7 +181,7 @@ HTML = """<!DOCTYPE html>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { overflow-x: clip; min-height: 100%; }
-  body { font-family: -apple-system, sans-serif; background: #f0f4f8; color: #333; overflow-x: clip; min-height: 100vh; }
+  body { font-family: -apple-system, sans-serif; background: #f0f4f8; color: #333; overflow-x: clip; min-height: 100vh; overscroll-behavior-y: none; }
   .header {
     background: #1a1a2e; color: #fff;
     padding: env(safe-area-inset-top, 20px) 16px 16px;
@@ -502,7 +502,7 @@ HTML = """<!DOCTYPE html>
         </h2>
         <div id="license-free-section">
           <p style="font-size:13px;color:#888;margin-bottom:10px">プレミアムキーを入力するとすべての機能が使えます。</p>
-          <input type="text" id="license-key-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX" style="font-size:14px;font-family:monospace;letter-spacing:1px">
+          <input type="text" id="license-key-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX" style="font-size:16px;font-family:monospace;letter-spacing:1px">
           <button class="add-btn" onclick="activateLicense()" style="margin-top:8px">認証する</button>
           <p id="license-error" style="font-size:12px;color:#e53935;margin-top:6px;display:none"></p>
         </div>
@@ -594,7 +594,7 @@ HTML = """<!DOCTYPE html>
         <p style="font-size:13px;color:#888;margin-bottom:10px">同期URLを別のデバイスで開くとデータを引き継げます。</p>
         <button class="add-btn" onclick="copySyncUrl()" style="margin-bottom:12px">同期URLをコピー</button>
         <p style="font-size:12px;color:#aaa;margin-bottom:6px">別デバイスから復元する場合はトークンを貼り付け：</p>
-        <input type="text" id="sync-token-input" placeholder="トークンを貼り付け（32文字以上）" style="font-family:monospace;font-size:12px">
+        <input type="text" id="sync-token-input" placeholder="トークンを貼り付け（32文字以上）" style="font-family:monospace;font-size:16px">
         <button class="add-btn" onclick="applySyncToken()" style="margin-top:8px">このトークンで復元</button>
       </div>
 

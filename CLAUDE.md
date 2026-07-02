@@ -50,6 +50,12 @@ netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8000 conne
 
 Safari PWA（iPhone）での表示が前提のため、画面からのはみ出しと折り返し未対応は許容しない。
 
+### 永続ルール（修正後も絶対に変えないこと）
+
+1. **入力欄タップでズームしない**: `input/select/textarea` の font-size は必ず 16px 以上。インラインで小さいフォントサイズを指定しない。
+2. **pull-to-refresh でタブを動かさない**: `body` に `overscroll-behavior-y: none` を常に設定する。
+3. **Choice 内で開くページを自動フィット**: INJECT_SCRIPT の `autoFit()` 関数（CSS zoom）を削除・変更しない。
+
 ## 残課題
 
 - サイト探索のブラウザでブロックされるサイトへの対応
