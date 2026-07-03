@@ -1091,6 +1091,18 @@ function applySyncToken() {
   location.reload();
 }
 
+async function setPassphrase() {
+  const p = document.getElementById('passphrase-input').value.trim();
+  if (p.length < 4) { alert('IDは4文字以上で入力してください'); return; }
+  if (!confirm('このIDを設定します')) return;
+  try {
+    const res = await api('/auth/passphrase', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
+    localStorage.setItem('ch_token', res.token);
+    alert('マイIDを設定しました');
+    location.reload();
+  } catch(e) { alert(e.message || 'エラーが発生しました'); }
+}
+
 async function deactivateLicense() {
   if (!confirm('ライセンスを解除しますか？')) return;
   const res = await api('/license', {method: 'DELETE'});
