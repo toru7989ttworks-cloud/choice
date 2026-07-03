@@ -11,22 +11,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from pathlib import Path
 from curl_cffi import requests as cffi_requests
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 from typing import Optional
 
 import os
-import asyncio as _asyncio
 DB_PATH = os.environ.get("DB_PATH", "sites.db")
-
-_subscribers: dict[str, list] = {}
-
-async def _notify(token: str, event_type: str):
-    payload = json.dumps({"type": event_type})
-    for q in list(_subscribers.get(token, [])):
-        await q.put(payload)
 
 
 def get_db():
@@ -37,7 +29,6 @@ def get_db():
 
 def init_db():
     conn = get_db()
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -621,16 +612,6 @@ HTML = """<!DOCTYPE html>
         <input type="text" id="sync-token-input" placeholder="トークンを貼り付け（32文字以上）" style="font-family:monospace;font-size:16px">
         <button class="add-btn" onclick="applySyncToken()" style="margin-top:8px">このトークンで復元</button>
       </div>
-      <div class="form-card">
-        <h2>🔑 マイID設定</h2>
-        <p style="font-size:13px;color:#888;margin-bottom:10px">覚えやすいIDを設定しておくと、機種変更時にIDを入力するだけでデータを復元できます。</p>
-        <input type="text" id="passphrase-input" placeholder="マイID（4文字以上）" style="font-size:16px">
-        <button class="add-btn" onclick="setPassphrase()" style="margin-top:8px">このIDを設定する</button>
-        <hr style="border-color:#333;margin:14px 0">
-        <p style="font-size:12px;color:#aaa;margin-bottom:6px">別端末・機種変更後の復元：</p>
-        <input type="text" id="passphrase-restore-input" placeholder="マイIDを入力" style="font-size:16px">
-        <button class="add-btn" onclick="restoreByPassphrase()" style="margin-top:8px">このIDで復元</button>
-      </div>
 
       <div class="form-card" style="background:#f9fbfc">
         <p style="font-size:13px;color:#888;line-height:1.7" id="api-note-footer" data-i18n="api_note_footer">
@@ -781,26 +762,6 @@ function getOrCreateToken() {
   return t;
 }
 const USER_TOKEN = getOrCreateToken();
-
-let _sseRetry = 1000;
-function _connectSSE() {
-  const es = new EventSource('/events?token=' + USER_TOKEN);
-  es.onmessage = function(e) {
-    try {
-      const ev = JSON.parse(e.data);
-      if (ev.type === 'sites') { loadSites && loadSites(); loadGroupChips && loadGroupChips(); }
-      if (ev.type === 'groups') { loadGroupChips && loadGroupChips(); loadTopicGroups && loadTopicGroups(); }
-      if (ev.type === 'topics') { loadTopics && loadTopics(); }
-    } catch(_) {}
-  };
-  es.onopen = function() { _sseRetry = 1000; };
-  es.onerror = function() {
-    es.close();
-    setTimeout(_connectSSE, _sseRetry);
-    _sseRetry = Math.min(_sseRetry * 2, 30000);
-  };
-}
-// _connectSSE(); // 一時無効化（デバッグ中）
 
 async function api(path, opts={}) {
   opts.headers = Object.assign({'X-User-Token': USER_TOKEN}, opts.headers || {});
@@ -1115,32 +1076,6 @@ function applySyncToken() {
   if (!t || t.length < 16) { alert('トークンが短すぎます'); return; }
   if (!confirm('トークンを切り替えます。現在のデータは表示されなくなります（トークンを控えておけば戻せます）。続けますか？')) return;
   localStorage.setItem('ch_token', t);
-  location.reload();
-}
-
-async function _sha256(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-async function setPassphrase() {
-  const p = document.getElementById('passphrase-input').value.trim();
-  if (p.length < 4) { alert('IDは4文字以上で入力してください'); return; }
-  if (!confirm('「' + p + '」をマイIDとして設定します。\n今後このIDを入力するだけでデータを復元できます。')) return;
-  try {
-    const res = await api('/auth/passphrase', {method:'POST', body: JSON.stringify({passphrase: p}), headers:{'Content-Type':'application/json'}});
-    localStorage.setItem('ch_token', res.token);
-    alert('マイIDを設定しました');
-    location.reload();
-  } catch(e) { alert(e.message || 'エラーが発生しました'); }
-}
-
-async function restoreByPassphrase() {
-  const p = document.getElementById('passphrase-restore-input').value.trim();
-  if (!p) { alert('IDを入力してください'); return; }
-  if (!confirm('「' + p + '」のデータに切り替えます。')) return;
-  const newToken = await _sha256('choice-' + p);
-  localStorage.setItem('ch_token', newToken);
   location.reload();
 }
 
@@ -2137,31 +2072,6 @@ def deactivate_license(token: str = Depends(get_token)):
     return {"status": "free"}
 
 
-@app.post("/auth/passphrase")
-def set_passphrase(body: dict, token: str = Depends(get_token)):
-    import hashlib
-    passphrase = (body.get("passphrase") or "").strip()
-    if len(passphrase) < 4:
-        raise HTTPException(status_code=400, detail="IDは4文字以上で入力してください")
-    new_token = hashlib.sha256(("choice-" + passphrase).encode()).hexdigest()
-    if new_token == token:
-        return {"token": new_token}
-    conn = get_db()
-    try:
-        existing = conn.execute("SELECT COUNT(*) FROM sites WHERE user_token=?", (new_token,)).fetchone()[0]
-        if existing > 0:
-            raise HTTPException(status_code=409, detail="このIDはすでに使用されています")
-        for tbl in ["sites", "groups", "pages", "topics", "topic_reads", "read_later", "settings"]:
-            try:
-                conn.execute(f"UPDATE {tbl} SET user_token=? WHERE user_token=?", (new_token, token))
-            except Exception:
-                pass
-        conn.commit()
-        return {"token": new_token}
-    finally:
-        conn.close()
-
-
 GENRE_LIST = [
     {"id":"pachinko", "label":"🎰 パチスロ・パチンコ", "query":"パチスロ パチンコ 攻略 情報 おすすめサイト"},
     {"id":"keiba",    "label":"🏇 競馬",               "query":"競馬 予想 攻略 情報 おすすめサイト"},
@@ -2409,33 +2319,6 @@ def index():
     return HTMLResponse(content=HTML, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
 
 
-@app.get("/events")
-async def event_stream(request: Request, token: Optional[str] = None):
-    # EventSource はカスタムヘッダーを送れないため query param からも受け取る
-    actual_token = request.headers.get("X-User-Token", "").strip() or (token or "").strip()
-    if not actual_token or len(actual_token) < 16:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=401, content={"detail": "ユーザートークンが必要です"})
-    token = actual_token
-    q: _asyncio.Queue = _asyncio.Queue()
-    _subscribers.setdefault(token, []).append(q)
-    async def generate():
-        try:
-            while True:
-                try:
-                    data = await _asyncio.wait_for(q.get(), timeout=20)
-                    yield f"data: {data}\n\n"
-                except _asyncio.TimeoutError:
-                    yield ": heartbeat\n\n"
-        finally:
-            if q in _subscribers.get(token, []):
-                _subscribers[token].remove(q)
-    return StreamingResponse(generate(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no"
-    })
-
-
 class SettingUpdate(BaseModel):
     value: str
 
@@ -2498,7 +2381,7 @@ def get_topics(group_id: Optional[int] = None, token: str = Depends(get_token)):
 
 
 @app.post("/topics/refresh")
-def refresh_topics(body: dict, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
+def refresh_topics(body: dict, token: str = Depends(get_token)):
     group_id = body.get("group_id")
     conn = get_db()
     if group_id:
@@ -2527,7 +2410,6 @@ def refresh_topics(body: dict, background_tasks: BackgroundTasks, token: str = D
                      (token, t["site_id"], t["url"], t["title"], t.get("published_at", "")))
     conn.commit()
     conn.close()
-    background_tasks.add_task(_notify, token, "topics")
     return {"ok": True, "count": len(all_topics)}
 
 
@@ -2578,7 +2460,7 @@ class GroupCreate(BaseModel):
     name: str
 
 @app.post("/groups", status_code=201)
-async def create_group(body: GroupCreate, token: str = Depends(get_token)):
+def create_group(body: GroupCreate, token: str = Depends(get_token)):
     conn = get_db()
     name = body.name.strip()
     existing = conn.execute("SELECT id FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
@@ -2589,11 +2471,10 @@ async def create_group(body: GroupCreate, token: str = Depends(get_token)):
     conn.commit()
     row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
     conn.close()
-    await _notify(token, "groups")
     return dict(row)
 
 @app.post("/groups/find-or-create", status_code=200)
-async def find_or_create_group(body: dict, token: str = Depends(get_token)):
+def find_or_create_group(body: dict, token: str = Depends(get_token)):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
@@ -2605,14 +2486,13 @@ async def find_or_create_group(body: dict, token: str = Depends(get_token)):
         conn.execute("INSERT OR IGNORE INTO groups (user_token, name) VALUES (?,?)", (token, name))
         conn.commit()
         row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
-        await _notify(token, "groups")
         return dict(row)
     finally:
         conn.close()
 
 
 @app.patch("/groups/{group_id}")
-async def rename_group(group_id: int, body: dict, token: str = Depends(get_token)):
+def rename_group(group_id: int, body: dict, token: str = Depends(get_token)):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
@@ -2624,7 +2504,6 @@ async def rename_group(group_id: int, body: dict, token: str = Depends(get_token
     conn.execute("UPDATE groups SET name=? WHERE id=? AND user_token=?", (name, group_id, token))
     conn.commit()
     conn.close()
-    await _notify(token, "groups")
     return {"ok": True}
 
 
@@ -2792,13 +2671,12 @@ def discover(genre: str, token: str = Depends(get_token)):
 
 
 @app.delete("/groups/{group_id}")
-async def delete_group(group_id: int, token: str = Depends(get_token)):
+def delete_group(group_id: int, token: str = Depends(get_token)):
     conn = get_db()
     conn.execute("UPDATE sites SET group_id=NULL WHERE group_id=? AND user_token=?", (group_id, token))
     conn.execute("DELETE FROM groups WHERE id=? AND user_token=?", (group_id, token))
     conn.commit()
     conn.close()
-    await _notify(token, "groups")
     return {"ok": True}
 
 
@@ -2819,17 +2697,16 @@ class SiteUpdate(BaseModel):
     group_id: Optional[int] = None
 
 @app.patch("/sites/{site_id}")
-async def update_site(site_id: int, body: SiteUpdate, token: str = Depends(get_token)):
+def update_site(site_id: int, body: SiteUpdate, token: str = Depends(get_token)):
     conn = get_db()
     conn.execute("UPDATE sites SET group_id=? WHERE id=? AND user_token=?", (body.group_id, site_id, token))
     conn.commit()
     conn.close()
-    await _notify(token, "sites")
     return {"ok": True}
 
 
 @app.post("/sites", status_code=201)
-async def add_site(site: SiteCreate, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
+def add_site(site: SiteCreate, token: str = Depends(get_token)):
     url = site.url.rstrip("/")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -2848,19 +2725,17 @@ async def add_site(site: SiteCreate, background_tasks: BackgroundTasks, token: s
     auto = conn2.execute("SELECT value FROM settings WHERE user_token=? AND key='auto_crawl'", (token,)).fetchone()
     conn2.close()
     if auto and auto["value"] == "on":
-        background_tasks.add_task(_do_crawl, site_id)
-    await _notify(token, "sites")
+        _do_crawl(site_id)
     return {"id": site_id, "name": site.name, "url": url}
 
 
 @app.delete("/sites/{site_id}")
-async def delete_site(site_id: int, token: str = Depends(get_token)):
+def delete_site(site_id: int, token: str = Depends(get_token)):
     conn = get_db()
     conn.execute("DELETE FROM pages WHERE site_id=?", (site_id,))
     conn.execute("DELETE FROM sites WHERE id=? AND user_token=?", (site_id, token))
     conn.commit()
     conn.close()
-    await _notify(token, "sites")
     return {"ok": True}
 
 
