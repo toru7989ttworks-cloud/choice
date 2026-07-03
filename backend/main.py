@@ -649,7 +649,9 @@ HTML = """<!DOCTYPE html>
     <button onclick="closePresets()" style="background:none;border:none;color:#fff;font-size:15px;padding:4px 8px;cursor:pointer;white-space:nowrap">✕ 閉じる</button>
     <span style="flex:1;color:#fff;font-weight:bold;font-size:16px">🔍 サイトを探す</span>
   </div>
-  <div style="overflow-y:auto;flex:1;padding:12px;background:#f0f4f8" id="preset-list"></div>
+  <div style="overflow-y:auto;flex:1;padding:12px;background:#f0f4f8">
+    <div id="preset-list" style="max-width:640px;margin:0 auto"></div>
+  </div>
 </div>
 
 <!-- 全画面ブラウザオーバーレイ -->
