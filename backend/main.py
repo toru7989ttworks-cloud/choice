@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from pathlib import Path
 from curl_cffi import requests as cffi_requests
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel
@@ -2410,7 +2410,13 @@ def index():
 
 
 @app.get("/events")
-async def event_stream(token: str = Depends(get_token)):
+async def event_stream(request: Request, token: Optional[str] = None):
+    # EventSource はカスタムヘッダーを送れないため query param からも受け取る
+    actual_token = request.headers.get("X-User-Token", "").strip() or (token or "").strip()
+    if not actual_token or len(actual_token) < 16:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=401, content={"detail": "ユーザートークンが必要です"})
+    token = actual_token
     q: _asyncio.Queue = _asyncio.Queue()
     _subscribers.setdefault(token, []).append(q)
     async def generate():
@@ -2492,7 +2498,7 @@ def get_topics(group_id: Optional[int] = None, token: str = Depends(get_token)):
 
 
 @app.post("/topics/refresh")
-async def refresh_topics(body: dict, token: str = Depends(get_token)):
+def refresh_topics(body: dict, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     group_id = body.get("group_id")
     conn = get_db()
     if group_id:
@@ -2521,7 +2527,7 @@ async def refresh_topics(body: dict, token: str = Depends(get_token)):
                      (token, t["site_id"], t["url"], t["title"], t.get("published_at", "")))
     conn.commit()
     conn.close()
-    await _notify(token, "topics")
+    background_tasks.add_task(_notify, token, "topics")
     return {"ok": True, "count": len(all_topics)}
 
 
@@ -2823,7 +2829,7 @@ async def update_site(site_id: int, body: SiteUpdate, token: str = Depends(get_t
 
 
 @app.post("/sites", status_code=201)
-async def add_site(site: SiteCreate, token: str = Depends(get_token)):
+async def add_site(site: SiteCreate, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     url = site.url.rstrip("/")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -2842,7 +2848,7 @@ async def add_site(site: SiteCreate, token: str = Depends(get_token)):
     auto = conn2.execute("SELECT value FROM settings WHERE user_token=? AND key='auto_crawl'", (token,)).fetchone()
     conn2.close()
     if auto and auto["value"] == "on":
-        _do_crawl(site_id)
+        background_tasks.add_task(_do_crawl, site_id)
     await _notify(token, "sites")
     return {"id": site_id, "name": site.name, "url": url}
 
