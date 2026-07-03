@@ -3266,3 +3266,39 @@ def admin_tokens(secret: str = ""):
     """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+@app.get("/admin/accounts", response_class=HTMLResponse)
+def admin_accounts(secret: str = ""):
+    if secret != os.environ.get("ADMIN_SECRET", ""):
+        raise HTTPException(status_code=403, detail="forbidden")
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT a.user_id,
+               (SELECT COUNT(*) FROM sites WHERE sites.user_token = a.token) as sites,
+               (SELECT COUNT(*) FROM groups WHERE groups.user_token = a.token) as grps
+        FROM accounts a
+        ORDER BY sites DESC
+    """).fetchall()
+    conn.close()
+    items = "".join(f"""
+        <tr>
+          <td style="padding:10px;font-family:monospace;font-size:14px">{r['user_id']}</td>
+          <td style="padding:10px;text-align:center">{r['sites']}</td>
+          <td style="padding:10px;text-align:center">{r['grps']}</td>
+        </tr>""" for r in rows)
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choice - アカウント一覧</title></head>
+<body style="font-family:sans-serif;padding:20px;background:#f0f4f8">
+<h2>Choice アカウント一覧</h2>
+<p style="color:#888;font-size:13px;margin-bottom:16px">登録済みアカウント数: {len(rows)}</p>
+<table style="border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+<thead><tr style="background:#1a1a2e;color:#fff">
+  <th style="padding:10px">ユーザーID</th>
+  <th style="padding:10px">サイト数</th>
+  <th style="padding:10px">グループ数</th>
+</tr></thead>
+<tbody>{items}</tbody>
+</table>
+</body></html>"""
