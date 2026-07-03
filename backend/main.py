@@ -614,6 +614,17 @@ HTML = """<!DOCTYPE html>
         <button class="add-btn" onclick="applySyncToken()" style="margin-top:8px">このトークンで復元</button>
       </div>
 
+      <div class="form-card">
+        <h2>🔑 マイID設定</h2>
+        <p style="font-size:13px;color:#888;margin-bottom:10px">覚えやすいIDを設定しておくと、機種変更時にIDを入力するだけでデータを復元できます。</p>
+        <input type="text" id="passphrase-input" placeholder="マイID（4文字以上）" style="font-size:16px">
+        <button class="add-btn" onclick="setPassphrase()" style="margin-top:8px">このIDを設定する</button>
+        <hr style="border-color:#333;margin:14px 0">
+        <p style="font-size:12px;color:#aaa;margin-bottom:6px">別端末・機種変更後の復元：</p>
+        <input type="text" id="passphrase-restore-input" placeholder="マイIDを入力" style="font-size:16px">
+        <button class="add-btn" onclick="restoreByPassphrase()" style="margin-top:8px">このIDで復元</button>
+      </div>
+
       <div class="form-card" style="background:#f9fbfc">
         <p style="font-size:13px;color:#888;line-height:1.7" id="api-note-footer" data-i18n="api_note_footer">
           APIキーはこのサーバー内にのみ保存されます。
@@ -1077,6 +1088,32 @@ function applySyncToken() {
   if (!t || t.length < 16) { alert('トークンが短すぎます'); return; }
   if (!confirm('トークンを切り替えます。現在のデータは表示されなくなります（トークンを控えておけば戻せます）。続けますか？')) return;
   localStorage.setItem('ch_token', t);
+  location.reload();
+}
+
+async function _sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function setPassphrase() {
+  const p = document.getElementById('passphrase-input').value.trim();
+  if (p.length < 4) { alert('IDは4文字以上で入力してください'); return; }
+  if (!confirm('「' + p + '」をマイIDとして設定します。\n今後このIDを入力するだけでデータを復元できます。')) return;
+  try {
+    const res = await api('/auth/passphrase', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
+    localStorage.setItem('ch_token', res.token);
+    alert('マイIDを設定しました');
+    location.reload();
+  } catch(e) { alert(e.message || 'エラーが発生しました'); }
+}
+
+async function restoreByPassphrase() {
+  const p = document.getElementById('passphrase-restore-input').value.trim();
+  if (!p) { alert('IDを入力してください'); return; }
+  if (!confirm('「' + p + '」のデータに切り替えます。')) return;
+  const newToken = await _sha256('choice-' + p);
+  localStorage.setItem('ch_token', newToken);
   location.reload();
 }
 
@@ -2023,6 +2060,31 @@ def license_status(token: str = Depends(get_token)):
     key = key_row["value"] if key_row else ""
     hint = (key[:4] + "-****-****") if len(key) > 4 else ""
     return {"status": status, "key_hint": hint}
+
+
+@app.post("/auth/passphrase")
+def set_passphrase(body: dict, token: str = Depends(get_token)):
+    import hashlib
+    passphrase = (body.get("passphrase") or "").strip()
+    if len(passphrase) < 4:
+        raise HTTPException(status_code=400, detail="IDは4文字以上で入力してください")
+    new_token = hashlib.sha256(("choice-" + passphrase).encode()).hexdigest()
+    if new_token == token:
+        return {"token": new_token}
+    conn = get_db()
+    try:
+        existing = conn.execute("SELECT COUNT(*) FROM sites WHERE user_token=?", (new_token,)).fetchone()[0]
+        if existing > 0:
+            raise HTTPException(status_code=409, detail="このIDはすでに使用されています")
+        for tbl in ["sites", "groups", "pages", "topics"]:
+            try:
+                conn.execute(f"UPDATE {tbl} SET user_token=? WHERE user_token=?", (new_token, token))
+            except Exception:
+                pass
+        conn.commit()
+        return {"token": new_token}
+    finally:
+        conn.close()
 
 
 @app.post("/license/activate")
