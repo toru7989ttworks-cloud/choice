@@ -632,7 +632,7 @@ HTML = """<!DOCTYPE html>
       <div class="form-card">
         <h2>🔑 アカウント設定</h2>
         <p style="font-size:13px;color:#888;margin-bottom:10px">設定しておくと、データが消えても復元できます。</p>
-        <input type="text" id="account-id-input" placeholder="ユーザーID（4文字以上）" style="font-size:16px" autocomplete="username">
+        <input type="text" id="account-id-input" placeholder="ユーザーID（半角英数字・4文字以上）" style="font-size:16px" autocomplete="username">
         <input type="password" id="account-pw-input" placeholder="パスワード（8文字以上）" style="font-size:16px;margin-top:8px" autocomplete="new-password">
         <button class="add-btn" onclick="setAccount()" style="margin-top:8px">このアカウントを設定する</button>
         <hr style="border-color:#333;margin:14px 0">
@@ -1146,6 +1146,7 @@ async function setAccount() {
   const user_id = document.getElementById('account-id-input').value.trim();
   const password = document.getElementById('account-pw-input').value.trim();
   if (user_id.length < 4) { alert('ユーザーIDは4文字以上で入力してください'); return; }
+  if (!/^[a-zA-Z0-9_-]+$/.test(user_id)) { alert('ユーザーIDは半角英数字・アンダースコア・ハイフンのみ使用できます'); return; }
   if (password.length < 8) { alert('パスワードは8文字以上で入力してください'); return; }
   if (!confirm('このアカウントを設定します')) return;
   try {
@@ -2146,6 +2147,8 @@ def set_account(body: dict, token: str = Depends(get_token)):
     password = (body.get("password") or "").strip()
     if len(user_id) < 4:
         raise HTTPException(400, "ユーザーIDは4文字以上で入力してください")
+    if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise HTTPException(400, "ユーザーIDは半角英数字・アンダースコア・ハイフンのみ使用できます")
     if len(password) < 8:
         raise HTTPException(400, "パスワードは8文字以上で入力してください")
     new_token = hashlib.sha256(f"choice-{user_id}:{password}".encode()).hexdigest()
