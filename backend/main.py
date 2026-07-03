@@ -649,9 +649,7 @@ HTML = """<!DOCTYPE html>
     <button onclick="closePresets()" style="background:none;border:none;color:#fff;font-size:15px;padding:4px 8px;cursor:pointer;white-space:nowrap">✕ 閉じる</button>
     <span style="flex:1;color:#fff;font-weight:bold;font-size:16px">🔍 サイトを探す</span>
   </div>
-  <div style="overflow-y:auto;flex:1;padding:12px;background:#f0f4f8">
-    <div id="preset-list" style="max-width:640px;margin:0 auto"></div>
-  </div>
+  <div style="overflow-y:auto;flex:1;padding:12px;background:#f0f4f8" id="preset-list"></div>
 </div>
 
 <!-- 全画面ブラウザオーバーレイ -->
@@ -767,38 +765,19 @@ function setMode(mode) {
   document.getElementById('mode-' + mode)?.classList.add('active');
 }
 
-function _setCookieToken(token) {
-  document.cookie = 'ch_token=' + token + '; max-age=31536000; path=/; SameSite=Strict';
-}
-function _getCookieToken() {
-  const m = document.cookie.match(/(?:^|;\s*)ch_token=([^;]+)/);
-  return m ? m[1] : null;
-}
-function _saveToken(token) {
-  localStorage.setItem('ch_token', token);
-  _setCookieToken(token);
-}
-
 function getOrCreateToken() {
   const sync = new URLSearchParams(location.search).get('sync');
   if (sync && sync.length >= 16) {
-    _saveToken(sync);
+    localStorage.setItem('ch_token', sync);
     history.replaceState(null, '', location.pathname);
-    return sync;
   }
   let t = localStorage.getItem('ch_token');
-  if (!t || t.length < 16) {
-    t = _getCookieToken();
-    if (t && t.length >= 16) {
-      localStorage.setItem('ch_token', t);
-    }
-  }
   if (!t || t.length < 16) {
     t = 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, c => {
       const r = Math.random() * 16 | 0;
       return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
-    _saveToken(t);
+    localStorage.setItem('ch_token', t);
   }
   return t;
 }
@@ -1136,7 +1115,7 @@ function applySyncToken() {
   const t = document.getElementById('sync-token-input').value.trim();
   if (!t || t.length < 16) { alert('トークンが短すぎます'); return; }
   if (!confirm('トークンを切り替えます。現在のデータは表示されなくなります（トークンを控えておけば戻せます）。続けますか？')) return;
-  _saveToken(t);
+  localStorage.setItem('ch_token', t);
   location.reload();
 }
 
@@ -1146,7 +1125,7 @@ async function setPassphrase() {
   if (!confirm('このIDを設定します')) return;
   try {
     const res = await api('/auth/passphrase', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
-    _saveToken(res.token);
+    localStorage.setItem('ch_token', res.token);
     alert('マイIDを設定しました');
     location.reload();
   } catch(e) { alert(e.message || 'エラーが発生しました'); }
@@ -1160,7 +1139,7 @@ async function restoreByPassphrase() {
     const res = await fetch('/auth/passphrase-resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
     const data = await res.json();
     if (!res.ok) { alert(data.detail || 'エラーが発生しました'); return; }
-    _saveToken(data.token);
+    localStorage.setItem('ch_token', data.token);
     location.reload();
   } catch(e) { alert(e.message || 'エラーが発生しました'); }
 }
@@ -3139,19 +3118,3 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
             pass
 
     return {"results": results, "query": req.query, "count": len(results)}
-
-
-@app.get("/admin/tokens")
-def admin_tokens(secret: str = ""):
-    if secret != os.environ.get("ADMIN_SECRET", ""):
-        raise HTTPException(status_code=403, detail="forbidden")
-    conn = get_db()
-    rows = conn.execute("""
-        SELECT user_token,
-               (SELECT COUNT(*) FROM sites WHERE sites.user_token = t.user_token) as sites,
-               (SELECT COUNT(*) FROM groups WHERE groups.user_token = t.user_token) as groups
-        FROM (SELECT DISTINCT user_token FROM sites UNION SELECT DISTINCT user_token FROM groups) t
-        ORDER BY sites DESC
-    """).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
