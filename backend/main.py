@@ -1103,6 +1103,19 @@ async function setPassphrase() {
   } catch(e) { alert(e.message || 'エラーが発生しました'); }
 }
 
+async function restoreByPassphrase() {
+  const p = document.getElementById('passphrase-restore-input').value.trim();
+  if (!p) { alert('IDを入力してください'); return; }
+  if (!confirm('このIDのデータに切り替えます')) return;
+  try {
+    const res = await fetch('/auth/passphrase-resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
+    const data = await res.json();
+    if (!res.ok) { alert(data.detail || 'エラーが発生しました'); return; }
+    localStorage.setItem('ch_token', data.token);
+    location.reload();
+  } catch(e) { alert(e.message || 'エラーが発生しました'); }
+}
+
 async function deactivateLicense() {
   if (!confirm('ライセンスを解除しますか？')) return;
   const res = await api('/license', {method: 'DELETE'});
@@ -2046,6 +2059,16 @@ def license_status(token: str = Depends(get_token)):
     key = key_row["value"] if key_row else ""
     hint = (key[:4] + "-****-****") if len(key) > 4 else ""
     return {"status": status, "key_hint": hint}
+
+
+@app.post("/auth/passphrase-resolve")
+def resolve_passphrase(body: dict):
+    import hashlib
+    passphrase = (body.get("passphrase") or "").strip()
+    if len(passphrase) < 4:
+        raise HTTPException(status_code=400, detail="IDは4文字以上で入力してください")
+    token = hashlib.sha256(("choice-" + passphrase).encode()).hexdigest()
+    return {"token": token}
 
 
 @app.post("/auth/passphrase")
