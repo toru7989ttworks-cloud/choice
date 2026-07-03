@@ -115,7 +115,7 @@
 
   <div class="doc-header">
     <h1>Choice アプリ 公開ロードマップ</h1>
-    <div class="meta">作成日: 2026年7月2日　／　更新日: 2026年7月2日</div>
+    <div class="meta">作成日: 2026年7月2日　／　更新日: 2026年7月3日</div>
     <div class="goal">
       <strong>ゴール:</strong> アプリを公開し、継続的な収益を得る<br>
       <strong>コンセプト:</strong> 好きなサイトだけをまとめてキーワード検索できる iOS Web アプリ（PWA）
@@ -124,7 +124,7 @@
 
   <div class="current-banner">
     <span class="badge">現在地</span>
-    フェーズ 2 進行中。Railway デプロイ・PWA インストール確認済み。次：SQLite 永続化。
+    フェーズ 2 進行中。SQLite 永続化・マルチデバイス同期・アカウント設定が完了。次：Stripe 決済の組み込み。
   </div>
 
   <!-- Phase 1 -->
@@ -226,16 +226,24 @@
         </div>
         <span class="tag tech">技術</span>
       </div>
-      <div class="task current" style="border: 2px solid #4a90d9;">
-        <span class="check">👉</span>
+      <div class="task done">
+        <span class="check">✅</span>
         <div class="task-body">
           <div class="task-name">SQLite 永続化（ボリューム設定）</div>
-          <div class="task-note">再デプロイのたびに DB がリセットされる。Railway の Persistent Volume で解決。</div>
+          <div class="task-note">Railway Persistent Volume + DB_PATH=/data/sites.db で永続化済み。</div>
         </div>
         <span class="tag tech">技術</span>
       </div>
-      <div class="task current">
-        <span class="check">🔲</span>
+      <div class="task done">
+        <span class="check">✅</span>
+        <div class="task-body">
+          <div class="task-name">マルチデバイス同期（SSE + アカウント設定）</div>
+          <div class="task-note">SSE でリアルタイム同期。アカウント設定（ユーザーID＋パスワード）で PC・PWA 間のデータ共有と復旧が可能。</div>
+        </div>
+        <span class="tag tech">技術</span>
+      </div>
+      <div class="task current" style="border: 2px solid #4a90d9;">
+        <span class="check">👉</span>
         <div class="task-body">
           <div class="task-name">Stripe 決済の組み込み</div>
           <div class="task-note">ライセンスキー購入フロー。購入完了でキー自動発行 → メール送信</div>

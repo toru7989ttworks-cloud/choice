@@ -626,10 +626,7 @@ HTML = """<!DOCTYPE html>
       <div class="form-card">
         <h2>🔗 デバイス同期</h2>
         <p style="font-size:13px;color:#888;margin-bottom:10px">同期URLを別のデバイスで開くとデータを引き継げます。</p>
-        <button class="add-btn" onclick="copySyncUrl()" style="margin-bottom:12px">同期URLをコピー</button>
-        <p style="font-size:12px;color:#aaa;margin-bottom:6px">別デバイスから復元する場合はトークンを貼り付け：</p>
-        <input type="text" id="sync-token-input" placeholder="トークンを貼り付け（32文字以上）" style="font-family:monospace;font-size:16px">
-        <button class="add-btn" onclick="applySyncToken()" style="margin-top:8px">このトークンで復元</button>
+        <button class="add-btn" onclick="copySyncUrl()">同期URLをコピー</button>
       </div>
 
       <div class="form-card">
@@ -1144,13 +1141,6 @@ function copySyncUrl() {
   });
 }
 
-function applySyncToken() {
-  const t = document.getElementById('sync-token-input').value.trim();
-  if (!t || t.length < 16) { alert('トークンが短すぎます'); return; }
-  if (!confirm('トークンを切り替えます。現在のデータは表示されなくなります（トークンを控えておけば戻せます）。続けますか？')) return;
-  _saveToken(t);
-  location.reload();
-}
 
 async function setAccount() {
   const user_id = document.getElementById('account-id-input').value.trim();
