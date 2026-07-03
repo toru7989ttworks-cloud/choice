@@ -767,19 +767,38 @@ function setMode(mode) {
   document.getElementById('mode-' + mode)?.classList.add('active');
 }
 
+function _setCookieToken(token) {
+  document.cookie = 'ch_token=' + token + '; max-age=31536000; path=/; SameSite=Strict';
+}
+function _getCookieToken() {
+  const m = document.cookie.match(/(?:^|;\s*)ch_token=([^;]+)/);
+  return m ? m[1] : null;
+}
+function _saveToken(token) {
+  localStorage.setItem('ch_token', token);
+  _setCookieToken(token);
+}
+
 function getOrCreateToken() {
   const sync = new URLSearchParams(location.search).get('sync');
   if (sync && sync.length >= 16) {
-    localStorage.setItem('ch_token', sync);
+    _saveToken(sync);
     history.replaceState(null, '', location.pathname);
+    return sync;
   }
   let t = localStorage.getItem('ch_token');
+  if (!t || t.length < 16) {
+    t = _getCookieToken();
+    if (t && t.length >= 16) {
+      localStorage.setItem('ch_token', t);
+    }
+  }
   if (!t || t.length < 16) {
     t = 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, c => {
       const r = Math.random() * 16 | 0;
       return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
-    localStorage.setItem('ch_token', t);
+    _saveToken(t);
   }
   return t;
 }
@@ -1117,7 +1136,7 @@ function applySyncToken() {
   const t = document.getElementById('sync-token-input').value.trim();
   if (!t || t.length < 16) { alert('トークンが短すぎます'); return; }
   if (!confirm('トークンを切り替えます。現在のデータは表示されなくなります（トークンを控えておけば戻せます）。続けますか？')) return;
-  localStorage.setItem('ch_token', t);
+  _saveToken(t);
   location.reload();
 }
 
@@ -1127,7 +1146,7 @@ async function setPassphrase() {
   if (!confirm('このIDを設定します')) return;
   try {
     const res = await api('/auth/passphrase', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
-    localStorage.setItem('ch_token', res.token);
+    _saveToken(res.token);
     alert('マイIDを設定しました');
     location.reload();
   } catch(e) { alert(e.message || 'エラーが発生しました'); }
@@ -1141,7 +1160,7 @@ async function restoreByPassphrase() {
     const res = await fetch('/auth/passphrase-resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
     const data = await res.json();
     if (!res.ok) { alert(data.detail || 'エラーが発生しました'); return; }
-    localStorage.setItem('ch_token', data.token);
+    _saveToken(data.token);
     location.reload();
   } catch(e) { alert(e.message || 'エラーが発生しました'); }
 }
