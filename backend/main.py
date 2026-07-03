@@ -164,6 +164,16 @@ def init_db():
         conn.execute("DELETE FROM schema_version")
         conn.execute("INSERT INTO schema_version (version) VALUES (8)")
 
+    if version < 9:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                user_id TEXT NOT NULL UNIQUE,
+                token TEXT NOT NULL UNIQUE
+            )
+        """)
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (9)")
+
     conn.commit()
     conn.close()
 
@@ -623,14 +633,16 @@ HTML = """<!DOCTYPE html>
       </div>
 
       <div class="form-card">
-        <h2>🔑 マイID設定</h2>
-        <p style="font-size:13px;color:#888;margin-bottom:10px">覚えやすいIDを設定しておくと、機種変更時にIDを入力するだけでデータを復元できます。</p>
-        <input type="text" id="passphrase-input" placeholder="マイID（4文字以上）" style="font-size:16px">
-        <button class="add-btn" onclick="setPassphrase()" style="margin-top:8px">このIDを設定する</button>
+        <h2>🔑 アカウント設定</h2>
+        <p style="font-size:13px;color:#888;margin-bottom:10px">設定しておくと、データが消えても復元できます。</p>
+        <input type="text" id="account-id-input" placeholder="ユーザーID（4文字以上）" style="font-size:16px" autocomplete="username">
+        <input type="password" id="account-pw-input" placeholder="パスワード（8文字以上）" style="font-size:16px;margin-top:8px" autocomplete="new-password">
+        <button class="add-btn" onclick="setAccount()" style="margin-top:8px">このアカウントを設定する</button>
         <hr style="border-color:#333;margin:14px 0">
-        <p style="font-size:12px;color:#aaa;margin-bottom:6px">別端末・機種変更後の復元：</p>
-        <input type="text" id="passphrase-restore-input" placeholder="マイIDを入力" style="font-size:16px">
-        <button class="add-btn" onclick="restoreByPassphrase()" style="margin-top:8px">このIDで復元</button>
+        <p style="font-size:12px;color:#aaa;margin-bottom:6px">データ消失時の復元：</p>
+        <input type="text" id="account-restore-id-input" placeholder="ユーザーID" style="font-size:16px" autocomplete="username">
+        <input type="password" id="account-restore-pw-input" placeholder="パスワード" style="font-size:16px;margin-top:8px" autocomplete="current-password">
+        <button class="add-btn" onclick="restoreByAccount()" style="margin-top:8px">このアカウントで復元</button>
       </div>
 
       <div class="form-card" style="background:#f9fbfc">
@@ -1140,24 +1152,27 @@ function applySyncToken() {
   location.reload();
 }
 
-async function setPassphrase() {
-  const p = document.getElementById('passphrase-input').value.trim();
-  if (p.length < 4) { alert('IDは4文字以上で入力してください'); return; }
-  if (!confirm('このIDを設定します')) return;
+async function setAccount() {
+  const user_id = document.getElementById('account-id-input').value.trim();
+  const password = document.getElementById('account-pw-input').value.trim();
+  if (user_id.length < 4) { alert('ユーザーIDは4文字以上で入力してください'); return; }
+  if (password.length < 8) { alert('パスワードは8文字以上で入力してください'); return; }
+  if (!confirm('このアカウントを設定します')) return;
   try {
-    const res = await api('/auth/passphrase', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
+    const res = await api('/auth/account', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id, password})});
     _saveToken(res.token);
-    alert('マイIDを設定しました');
+    alert('アカウントを設定しました');
     location.reload();
   } catch(e) { alert(e.message || 'エラーが発生しました'); }
 }
 
-async function restoreByPassphrase() {
-  const p = document.getElementById('passphrase-restore-input').value.trim();
-  if (!p) { alert('IDを入力してください'); return; }
-  if (!confirm('このIDのデータに切り替えます')) return;
+async function restoreByAccount() {
+  const user_id = document.getElementById('account-restore-id-input').value.trim();
+  const password = document.getElementById('account-restore-pw-input').value.trim();
+  if (!user_id || !password) { alert('ユーザーIDとパスワードを入力してください'); return; }
+  if (!confirm('このアカウントのデータに切り替えます')) return;
   try {
-    const res = await fetch('/auth/passphrase-resolve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
+    const res = await fetch('/auth/account-restore', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id, password})});
     const data = await res.json();
     if (!res.ok) { alert(data.detail || 'エラーが発生しました'); return; }
     _saveToken(data.token);
@@ -2134,37 +2149,50 @@ async def event_stream(request: Request, token: Optional[str] = None):
     })
 
 
-@app.post("/auth/passphrase-resolve")
-def resolve_passphrase(body: dict):
+@app.post("/auth/account")
+def set_account(body: dict, token: str = Depends(get_token)):
     import hashlib
-    passphrase = (body.get("passphrase") or "").strip()
-    if len(passphrase) < 4:
-        raise HTTPException(status_code=400, detail="IDは4文字以上で入力してください")
-    token = hashlib.sha256(("choice-" + passphrase).encode()).hexdigest()
-    return {"token": token}
-
-
-@app.post("/auth/passphrase")
-def set_passphrase(body: dict, token: str = Depends(get_token)):
-    import hashlib
-    passphrase = (body.get("passphrase") or "").strip()
-    if len(passphrase) < 4:
-        raise HTTPException(status_code=400, detail="IDは4文字以上で入力してください")
-    new_token = hashlib.sha256(("choice-" + passphrase).encode()).hexdigest()
-    if new_token == token:
-        return {"token": new_token}
+    user_id = (body.get("user_id") or "").strip()
+    password = (body.get("password") or "").strip()
+    if len(user_id) < 4:
+        raise HTTPException(400, "ユーザーIDは4文字以上で入力してください")
+    if len(password) < 8:
+        raise HTTPException(400, "パスワードは8文字以上で入力してください")
+    new_token = hashlib.sha256(f"choice-{user_id}:{password}".encode()).hexdigest()
     conn = get_db()
     try:
-        existing = conn.execute("SELECT COUNT(*) FROM sites WHERE user_token=?", (new_token,)).fetchone()[0]
-        if existing > 0:
-            raise HTTPException(status_code=409, detail="このIDはすでに使用されています")
-        for tbl in ["sites", "groups", "pages", "topics"]:
-            try:
-                conn.execute(f"UPDATE {tbl} SET user_token=? WHERE user_token=?", (new_token, token))
-            except Exception:
-                pass
+        existing = conn.execute("SELECT token FROM accounts WHERE user_id=?", (user_id,)).fetchone()
+        if existing:
+            raise HTTPException(409, "このユーザーIDはすでに使用されています")
+        conn.execute("INSERT INTO accounts (user_id, token) VALUES (?,?)", (user_id, new_token))
+        if new_token != token:
+            for tbl in ["sites", "groups", "pages", "topics", "read_later", "topic_reads", "settings"]:
+                try:
+                    conn.execute(f"UPDATE {tbl} SET user_token=? WHERE user_token=?", (new_token, token))
+                except Exception:
+                    pass
         conn.commit()
         return {"token": new_token}
+    finally:
+        conn.close()
+
+
+@app.post("/auth/account-restore")
+def restore_account(body: dict):
+    import hashlib
+    user_id = (body.get("user_id") or "").strip()
+    password = (body.get("password") or "").strip()
+    if not user_id or not password:
+        raise HTTPException(400, "ユーザーIDとパスワードを入力してください")
+    derived = hashlib.sha256(f"choice-{user_id}:{password}".encode()).hexdigest()
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT token FROM accounts WHERE user_id=?", (user_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "このユーザーIDは登録されていません")
+        if row["token"] != derived:
+            raise HTTPException(401, "パスワードが違います")
+        return {"token": row["token"]}
     finally:
         conn.close()
 
