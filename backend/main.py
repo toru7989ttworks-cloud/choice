@@ -552,7 +552,7 @@ HTML = """<!DOCTYPE html>
           <span class="api-status" id="api-status"></span>
         </h2>
         <div class="seg-ctrl" style="width:100%;margin-bottom:10px">
-          <button class="seg-btn" style="flex:1" id="provider-yahoo"  onclick="setProvider('yahoo')">DuckDuckGo</button>
+          <button class="seg-btn" style="flex:1" id="provider-yahoo"  onclick="setProvider('yahoo')">Yahoo Japan</button>
           <button class="seg-btn" style="flex:1" id="provider-google" onclick="setProvider('google')">Google</button>
           <button class="seg-btn" style="flex:1" id="provider-brave"  onclick="setProvider('brave')">Brave</button>
         </div>
@@ -586,10 +586,10 @@ HTML = """<!DOCTYPE html>
           <input type="text" id="setting-google-cx" placeholder="a1b2c3...">
         </div>
 
-        <!-- DuckDuckGo -->
+        <!-- Yahoo Japan -->
         <div id="pane-yahoo" style="display:none">
           <div class="step-box" style="color:#666" id="yahoo-note" data-i18n-html="yahoo_note">
-            APIキー不要。DuckDuckGo 経由で検索します。<br>
+            APIキー不要。Yahoo Japan 経由で検索します。<br>
             スニペット（説明文）は表示されません。
           </div>
         </div>
@@ -3072,6 +3072,25 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
         except Exception:
             return []
 
+    def fetch_yahoo(site):
+        domain = urllib.parse.urlparse(site["url"]).netloc
+        q = f"{req.query} site:{domain}"
+        try:
+            s_sess = cffi_requests.Session(impersonate="chrome124")
+            resp = s_sess.get("https://search.yahoo.co.jp/search", params={"p": q}, timeout=10)
+            body = resp.text
+        except Exception:
+            return []
+        cards = re.findall(r'<div class="sw-Card Algo[^"]*">(.*?)(?=<div class="sw-Card Algo|</section>)', body, re.DOTALL)
+        items = []
+        for card in cards[:10]:
+            url_m = re.search(r'<a href="(https://[^"]+)" class="sw-Card__titleInner', card)
+            title_m = re.search(r'class="sw-Card__titleMain[^"]*"[^>]*>(.*?)</(?:h3|span|a|div)>', card, re.DOTALL)
+            if not url_m or not title_m:
+                continue
+            items.append({"url": url_m.group(1), "title": html.unescape(re.sub(r"<[^>]+>", "", title_m.group(1))).strip(), "excerpt": "", "site_name": site["name"]})
+        return items
+
     def fetch_ddg(site):
         domain = urllib.parse.urlparse(site["url"]).netloc
         q = f"{req.query} site:{domain}"
@@ -3100,8 +3119,10 @@ def search_web(req: SearchRequest, token: str = Depends(get_token)):
         fetch_fn = fetch_brave
     elif provider == "google" and google_key and google_cx:
         fetch_fn = fetch_google
-    else:
+    elif provider == "ddg":
         fetch_fn = fetch_ddg
+    else:
+        fetch_fn = fetch_yahoo
 
     results = []
     with ThreadPoolExecutor(max_workers=min(len(sites), 8)) as ex:
@@ -3147,7 +3168,7 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
         except Exception:
             pass
 
-    else:
+    elif provider == "ddg":
         try:
             s_sess = cffi_requests.Session(impersonate="chrome124")
             resp = s_sess.get("https://html.duckduckgo.com/html/", params={"q": q}, timeout=15,
@@ -3163,6 +3184,21 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
                 title = html.unescape(re.sub(r"<[^>]+>", "", raw_title)).strip()
                 if title:
                     results.append({"url": actual_url, "title": title, "excerpt": ""})
+        except Exception:
+            pass
+
+    else:
+        try:
+            s_sess = cffi_requests.Session(impersonate="chrome124")
+            resp = s_sess.get("https://search.yahoo.co.jp/search", params={"p": q}, timeout=15)
+            body = resp.text
+            cards = re.findall(r'<div class="sw-Card Algo[^"]*">(.*?)(?=<div class="sw-Card Algo|</section>)', body, re.DOTALL)
+            for card in cards[:20]:
+                url_m = re.search(r'<a href="(https://[^"]+)" class="sw-Card__titleInner', card)
+                title_m = re.search(r'class="sw-Card__titleMain[^"]*"[^>]*>(.*?)</(?:h3|span|a|div)>', card, re.DOTALL)
+                if not url_m or not title_m:
+                    continue
+                results.append({"url": url_m.group(1), "title": html.unescape(re.sub(r"<[^>]+>", "", title_m.group(1))).strip(), "excerpt": ""})
         except Exception:
             pass
 
