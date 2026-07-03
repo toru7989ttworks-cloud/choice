@@ -2435,10 +2435,11 @@ def proxy(url: str):
                 '', text, flags=re.IGNORECASE | re.DOTALL
             )
         # base タグとスクリプトを注入
+        inject = base_tag + INJECT_SCRIPT
         if re.search(r'<head[^>]*>', text, re.IGNORECASE):
-            text = re.sub(r'(<head[^>]*>)', r'\1' + base_tag + INJECT_SCRIPT, text, count=1, flags=re.IGNORECASE)
+            text = re.sub(r'(<head[^>]*>)', lambda m: m.group(1) + inject, text, count=1, flags=re.IGNORECASE)
         else:
-            text = base_tag + INJECT_SCRIPT + text
+            text = inject + text
         body = text.encode("utf-8")
         content_type = "text/html; charset=utf-8"
 
