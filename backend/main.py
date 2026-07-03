@@ -1091,32 +1091,6 @@ function applySyncToken() {
   location.reload();
 }
 
-async function _sha256(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-async function setPassphrase() {
-  const p = document.getElementById('passphrase-input').value.trim();
-  if (p.length < 4) { alert('IDは4文字以上で入力してください'); return; }
-  if (!confirm('「' + p + '」をマイIDとして設定します。\n今後このIDを入力するだけでデータを復元できます。')) return;
-  try {
-    const res = await api('/auth/passphrase', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({passphrase: p})});
-    localStorage.setItem('ch_token', res.token);
-    alert('マイIDを設定しました');
-    location.reload();
-  } catch(e) { alert(e.message || 'エラーが発生しました'); }
-}
-
-async function restoreByPassphrase() {
-  const p = document.getElementById('passphrase-restore-input').value.trim();
-  if (!p) { alert('IDを入力してください'); return; }
-  if (!confirm('「' + p + '」のデータに切り替えます。')) return;
-  const newToken = await _sha256('choice-' + p);
-  localStorage.setItem('ch_token', newToken);
-  location.reload();
-}
-
 async function deactivateLicense() {
   if (!confirm('ライセンスを解除しますか？')) return;
   const res = await api('/license', {method: 'DELETE'});
