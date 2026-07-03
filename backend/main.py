@@ -2156,7 +2156,7 @@ img,video,table,pre{max-width:100%!important;height:auto!important}
   document.addEventListener('DOMContentLoaded', function(){
     obs.observe(document.body, {childList:true, subtree:true});
   });
-  // 画面幅に合わせて縮小（CSS zoom を使用して親ページのレイアウトに影響させない）
+  // 画面幅に合わせて拡縮（CSS zoom を使用して親ページのレイアウトに影響させない）
   var _fitLock = false;
   function autoFit(){
     if(_fitLock) return;
@@ -2166,10 +2166,21 @@ img,video,table,pre{max-width:100%!important;height:auto!important}
     );
     var winW = window.innerWidth;
     if(docW > winW + 5){
+      // サイトが画面より広い → 縮小
       _fitLock = true;
       var scale = (winW / docW).toFixed(3);
       document.documentElement.style.zoom = scale;
       setTimeout(function(){ _fitLock = false; }, 400);
+    } else if(winW > docW + 20){
+      // サイトが画面より狭い → モバイル最適化済み(width=device-width)は除外して拡大
+      var vpMeta = document.querySelector('meta[name="viewport"]');
+      var isMobileOptimized = vpMeta && /width\s*=\s*device-width/i.test(vpMeta.getAttribute('content') || '');
+      if(!isMobileOptimized){
+        _fitLock = true;
+        var scale = (winW / docW).toFixed(3);
+        document.documentElement.style.zoom = scale;
+        setTimeout(function(){ _fitLock = false; }, 400);
+      }
     }
   }
   var _fitTimer;
