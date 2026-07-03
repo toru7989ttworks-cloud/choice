@@ -800,7 +800,7 @@ function _connectSSE() {
     _sseRetry = Math.min(_sseRetry * 2, 30000);
   };
 }
-_connectSSE();
+// _connectSSE(); // 一時無効化（デバッグ中）
 
 async function api(path, opts={}) {
   opts.headers = Object.assign({'X-User-Token': USER_TOKEN}, opts.headers || {});
