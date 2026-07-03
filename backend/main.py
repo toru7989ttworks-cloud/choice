@@ -174,6 +174,18 @@ def init_db():
         conn.execute("DELETE FROM schema_version")
         conn.execute("INSERT INTO schema_version (version) VALUES (9)")
 
+    if version < 10:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_token TEXT NOT NULL,
+                duration INTEGER NOT NULL DEFAULT 0,
+                recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (10)")
+
     conn.commit()
     conn.close()
 
@@ -832,6 +844,32 @@ function _connectSSE() {
   };
 }
 _connectSSE();
+
+// セッション滞在時間計測
+(function(){
+  var _activeStart = Date.now();
+  var _accumulated = 0;
+  var _sent = false;
+  function _flush() {
+    if (_sent) return;
+    var total = _accumulated + (document.hidden ? 0 : (Date.now() - _activeStart));
+    var seconds = Math.round(total / 1000);
+    if (seconds < 2) return;
+    _sent = true;
+    navigator.sendBeacon('/analytics/session', JSON.stringify({duration: seconds}));
+  }
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      _accumulated += Date.now() - _activeStart;
+      _flush();
+      _sent = false;
+    } else {
+      _activeStart = Date.now();
+    }
+  });
+  window.addEventListener('beforeunload', _flush);
+  window.addEventListener('pagehide', _flush);
+})();
 
 async function api(path, opts={}) {
   opts.headers = Object.assign({'X-User-Token': USER_TOKEN}, opts.headers || {});
@@ -3303,5 +3341,93 @@ def admin_accounts(secret: str = ""):
   <th style="padding:10px">グループ数</th>
 </tr></thead>
 <tbody>{items}</tbody>
+</table>
+</body></html>"""
+
+
+@app.post("/analytics/session")
+def record_session(request: Request, body: dict, token: str = Depends(get_token)):
+    duration = int(body.get("duration", 0))
+    if duration < 2 or duration > 86400:
+        return {"ok": False}
+    conn = get_db()
+    conn.execute("INSERT INTO sessions (user_token, duration) VALUES (?, ?)", (token, duration))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.get("/admin/analytics", response_class=HTMLResponse)
+def admin_analytics(secret: str = ""):
+    if secret != os.environ.get("ADMIN_SECRET", ""):
+        raise HTTPException(status_code=403, detail="forbidden")
+    conn = get_db()
+    summary = conn.execute("""
+        SELECT COUNT(*) as total_sessions,
+               COUNT(DISTINCT user_token) as unique_users,
+               ROUND(AVG(duration)) as avg_duration,
+               ROUND(MAX(duration)) as max_duration,
+               SUM(duration) as total_seconds
+        FROM sessions
+    """).fetchone()
+    daily = conn.execute("""
+        SELECT DATE(recorded_at) as day,
+               COUNT(*) as sessions,
+               COUNT(DISTINCT user_token) as users,
+               ROUND(AVG(duration)) as avg_sec
+        FROM sessions
+        GROUP BY DATE(recorded_at)
+        ORDER BY day DESC
+        LIMIT 30
+    """).fetchall()
+    conn.close()
+
+    def fmt(sec):
+        if sec is None: return '-'
+        sec = int(sec)
+        if sec < 60: return f"{sec}秒"
+        return f"{sec // 60}分{sec % 60}秒"
+
+    daily_rows = "".join(f"""
+        <tr>
+          <td style="padding:8px">{r['day']}</td>
+          <td style="padding:8px;text-align:center">{r['sessions']}</td>
+          <td style="padding:8px;text-align:center">{r['users']}</td>
+          <td style="padding:8px;text-align:center">{fmt(r['avg_sec'])}</td>
+        </tr>""" for r in daily)
+
+    s = summary
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choice - アナリティクス</title></head>
+<body style="font-family:sans-serif;padding:20px;background:#f0f4f8">
+<h2>Choice アナリティクス</h2>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+  <div style="background:#fff;border-radius:8px;padding:16px 24px;box-shadow:0 1px 4px rgba(0,0,0,.1);min-width:120px">
+    <div style="font-size:12px;color:#888">総セッション数</div>
+    <div style="font-size:28px;font-weight:900">{s['total_sessions'] or 0}</div>
+  </div>
+  <div style="background:#fff;border-radius:8px;padding:16px 24px;box-shadow:0 1px 4px rgba(0,0,0,.1);min-width:120px">
+    <div style="font-size:12px;color:#888">ユニークユーザー</div>
+    <div style="font-size:28px;font-weight:900">{s['unique_users'] or 0}</div>
+  </div>
+  <div style="background:#fff;border-radius:8px;padding:16px 24px;box-shadow:0 1px 4px rgba(0,0,0,.1);min-width:120px">
+    <div style="font-size:12px;color:#888">平均滞在時間</div>
+    <div style="font-size:28px;font-weight:900">{fmt(s['avg_duration'])}</div>
+  </div>
+  <div style="background:#fff;border-radius:8px;padding:16px 24px;box-shadow:0 1px 4px rgba(0,0,0,.1);min-width:120px">
+    <div style="font-size:12px;color:#888">最長滞在時間</div>
+    <div style="font-size:28px;font-weight:900">{fmt(s['max_duration'])}</div>
+  </div>
+</div>
+<h3 style="margin-bottom:12px">日別データ（直近30日）</h3>
+<table style="border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+<thead><tr style="background:#1a1a2e;color:#fff">
+  <th style="padding:10px">日付</th>
+  <th style="padding:10px">セッション数</th>
+  <th style="padding:10px">ユーザー数</th>
+  <th style="padding:10px">平均滞在</th>
+</tr></thead>
+<tbody>{daily_rows}</tbody>
 </table>
 </body></html>"""
