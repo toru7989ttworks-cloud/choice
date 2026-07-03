@@ -3141,6 +3141,58 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
     return {"results": results, "query": req.query, "count": len(results)}
 
 
+@app.get("/admin/restore", response_class=HTMLResponse)
+def admin_restore_page(secret: str = ""):
+    if secret != os.environ.get("ADMIN_SECRET", ""):
+        raise HTTPException(status_code=403, detail="forbidden")
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT user_token,
+               (SELECT COUNT(*) FROM sites WHERE sites.user_token = t.user_token) as sites,
+               (SELECT COUNT(*) FROM groups WHERE groups.user_token = t.user_token) as groups
+        FROM (SELECT DISTINCT user_token FROM sites UNION SELECT DISTINCT user_token FROM groups) t
+        ORDER BY sites DESC
+    """).fetchall()
+    conn.close()
+    items = "".join(f"""
+        <tr>
+          <td style="padding:8px;font-family:monospace;font-size:12px">{r['user_token']}</td>
+          <td style="padding:8px;text-align:center">{r['sites']}</td>
+          <td style="padding:8px;text-align:center">{r['groups']}</td>
+          <td style="padding:8px">
+            <button onclick="restore('{r['user_token']}')"
+              style="background:#4a90d9;color:#fff;border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px">
+              このデータを復元
+            </button>
+          </td>
+        </tr>""" for r in rows)
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choice - データ復元</title></head>
+<body style="font-family:sans-serif;padding:20px;background:#f0f4f8">
+<h2>Choice データ復元</h2>
+<p style="color:#888;font-size:13px">復元したいデータの行の「このデータを復元」を押してください。</p>
+<table style="border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1)">
+<thead><tr style="background:#1a1a2e;color:#fff">
+  <th style="padding:10px">トークン</th>
+  <th style="padding:10px">サイト数</th>
+  <th style="padding:10px">グループ数</th>
+  <th style="padding:10px"></th>
+</tr></thead>
+<tbody>{items}</tbody>
+</table>
+<script>
+function restore(token) {{
+  if (!confirm('このデータに切り替えます。よろしいですか？')) return;
+  localStorage.setItem('ch_token', token);
+  document.cookie = 'ch_token=' + token + '; max-age=31536000; path=/; SameSite=Strict';
+  alert('復元しました。Choiceを開いてください。');
+  window.location.href = '/';
+}}
+</script>
+</body></html>"""
+
+
 @app.get("/admin/tokens")
 def admin_tokens(secret: str = ""):
     if secret != os.environ.get("ADMIN_SECRET", ""):
