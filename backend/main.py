@@ -3199,15 +3199,19 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
 def admin_restore_page(secret: str = ""):
     if secret != os.environ.get("ADMIN_SECRET", ""):
         raise HTTPException(status_code=403, detail="forbidden")
-    conn = get_db()
-    rows = conn.execute("""
-        SELECT user_token,
-               (SELECT COUNT(*) FROM sites WHERE sites.user_token = t.user_token) as sites,
-               (SELECT COUNT(*) FROM groups WHERE groups.user_token = t.user_token) as groups
-        FROM (SELECT DISTINCT user_token FROM sites UNION SELECT DISTINCT user_token FROM groups) t
-        ORDER BY sites DESC
-    """).fetchall()
-    conn.close()
+    try:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT user_token,
+                   (SELECT COUNT(*) FROM sites WHERE sites.user_token = t.user_token) as sites,
+                   (SELECT COUNT(*) FROM groups WHERE groups.user_token = t.user_token) as groups
+            FROM (SELECT DISTINCT user_token FROM sites UNION SELECT DISTINCT user_token FROM groups) t
+            ORDER BY sites DESC
+        """).fetchall()
+        conn.close()
+    except Exception as e:
+        import traceback
+        return HTMLResponse(content=f"<pre>ERROR: {e}\n\n{traceback.format_exc()}</pre>", status_code=500)
     items = "".join(f"""
         <tr>
           <td style="padding:8px;font-family:monospace;font-size:12px">{r['user_token']}</td>
