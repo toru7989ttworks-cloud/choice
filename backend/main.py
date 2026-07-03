@@ -11,9 +11,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from pathlib import Path
 from curl_cffi import requests as cffi_requests
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
+import asyncio as _asyncio
+
+_subscribers: dict[str, list] = {}
+
+async def _notify(token: str, event_type: str):
+    payload = json.dumps({"type": event_type})
+    for q in list(_subscribers.get(token, [])):
+        await q.put(payload)
 from pydantic import BaseModel
 from typing import Optional
 
@@ -774,6 +782,26 @@ function getOrCreateToken() {
   return t;
 }
 const USER_TOKEN = getOrCreateToken();
+
+let _sseRetry = 1000;
+function _connectSSE() {
+  const es = new EventSource('/events?token=' + USER_TOKEN);
+  es.onmessage = function(e) {
+    try {
+      const ev = JSON.parse(e.data);
+      if (ev.type === 'sites') { loadSites && loadSites(); loadGroupChips && loadGroupChips(); }
+      if (ev.type === 'groups') { loadGroupChips && loadGroupChips(); loadTopicGroups && loadTopicGroups(); }
+      if (ev.type === 'topics') { loadTopics && loadTopics(); }
+    } catch(_) {}
+  };
+  es.onopen = function() { _sseRetry = 1000; };
+  es.onerror = function() {
+    es.close();
+    setTimeout(_connectSSE, _sseRetry);
+    _sseRetry = Math.min(_sseRetry * 2, 30000);
+  };
+}
+_connectSSE();
 
 async function api(path, opts={}) {
   opts.headers = Object.assign({'X-User-Token': USER_TOKEN}, opts.headers || {});
@@ -2061,6 +2089,30 @@ def license_status(token: str = Depends(get_token)):
     return {"status": status, "key_hint": hint}
 
 
+@app.get("/events")
+async def event_stream(request: Request, token: Optional[str] = None):
+    actual_token = request.headers.get("X-User-Token", "").strip() or (token or "").strip()
+    if not actual_token or len(actual_token) < 16:
+        return Response(status_code=401)
+    q: _asyncio.Queue = _asyncio.Queue()
+    _subscribers.setdefault(actual_token, []).append(q)
+    async def generate():
+        try:
+            while True:
+                try:
+                    data = await _asyncio.wait_for(q.get(), timeout=20)
+                    yield f"data: {data}\n\n"
+                except _asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+        finally:
+            if q in _subscribers.get(actual_token, []):
+                _subscribers[actual_token].remove(q)
+    return StreamingResponse(generate(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"
+    })
+
+
 @app.post("/auth/passphrase-resolve")
 def resolve_passphrase(body: dict):
     import hashlib
@@ -2453,7 +2505,7 @@ def get_topics(group_id: Optional[int] = None, token: str = Depends(get_token)):
 
 
 @app.post("/topics/refresh")
-def refresh_topics(body: dict, token: str = Depends(get_token)):
+def refresh_topics(body: dict, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     group_id = body.get("group_id")
     conn = get_db()
     if group_id:
@@ -2482,6 +2534,7 @@ def refresh_topics(body: dict, token: str = Depends(get_token)):
                      (token, t["site_id"], t["url"], t["title"], t.get("published_at", "")))
     conn.commit()
     conn.close()
+    background_tasks.add_task(_notify, token, "topics")
     return {"ok": True, "count": len(all_topics)}
 
 
@@ -2532,7 +2585,7 @@ class GroupCreate(BaseModel):
     name: str
 
 @app.post("/groups", status_code=201)
-def create_group(body: GroupCreate, token: str = Depends(get_token)):
+def create_group(body: GroupCreate, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     conn = get_db()
     name = body.name.strip()
     existing = conn.execute("SELECT id FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
@@ -2543,10 +2596,11 @@ def create_group(body: GroupCreate, token: str = Depends(get_token)):
     conn.commit()
     row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
     conn.close()
+    background_tasks.add_task(_notify, token, "groups")
     return dict(row)
 
 @app.post("/groups/find-or-create", status_code=200)
-def find_or_create_group(body: dict, token: str = Depends(get_token)):
+def find_or_create_group(body: dict, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
@@ -2558,13 +2612,14 @@ def find_or_create_group(body: dict, token: str = Depends(get_token)):
         conn.execute("INSERT OR IGNORE INTO groups (user_token, name) VALUES (?,?)", (token, name))
         conn.commit()
         row = conn.execute("SELECT * FROM groups WHERE user_token=? AND name=?", (token, name)).fetchone()
+        background_tasks.add_task(_notify, token, "groups")
         return dict(row)
     finally:
         conn.close()
 
 
 @app.patch("/groups/{group_id}")
-def rename_group(group_id: int, body: dict, token: str = Depends(get_token)):
+def rename_group(group_id: int, body: dict, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="グループ名を入力してください")
@@ -2576,6 +2631,7 @@ def rename_group(group_id: int, body: dict, token: str = Depends(get_token)):
     conn.execute("UPDATE groups SET name=? WHERE id=? AND user_token=?", (name, group_id, token))
     conn.commit()
     conn.close()
+    background_tasks.add_task(_notify, token, "groups")
     return {"ok": True}
 
 
@@ -2743,12 +2799,13 @@ def discover(genre: str, token: str = Depends(get_token)):
 
 
 @app.delete("/groups/{group_id}")
-def delete_group(group_id: int, token: str = Depends(get_token)):
+def delete_group(group_id: int, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     conn = get_db()
     conn.execute("UPDATE sites SET group_id=NULL WHERE group_id=? AND user_token=?", (group_id, token))
     conn.execute("DELETE FROM groups WHERE id=? AND user_token=?", (group_id, token))
     conn.commit()
     conn.close()
+    background_tasks.add_task(_notify, token, "groups")
     return {"ok": True}
 
 
@@ -2769,16 +2826,17 @@ class SiteUpdate(BaseModel):
     group_id: Optional[int] = None
 
 @app.patch("/sites/{site_id}")
-def update_site(site_id: int, body: SiteUpdate, token: str = Depends(get_token)):
+def update_site(site_id: int, body: SiteUpdate, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     conn = get_db()
     conn.execute("UPDATE sites SET group_id=? WHERE id=? AND user_token=?", (body.group_id, site_id, token))
     conn.commit()
     conn.close()
+    background_tasks.add_task(_notify, token, "sites")
     return {"ok": True}
 
 
 @app.post("/sites", status_code=201)
-def add_site(site: SiteCreate, token: str = Depends(get_token)):
+def add_site(site: SiteCreate, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     url = site.url.rstrip("/")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -2797,17 +2855,19 @@ def add_site(site: SiteCreate, token: str = Depends(get_token)):
     auto = conn2.execute("SELECT value FROM settings WHERE user_token=? AND key='auto_crawl'", (token,)).fetchone()
     conn2.close()
     if auto and auto["value"] == "on":
-        _do_crawl(site_id)
+        background_tasks.add_task(_do_crawl, site_id)
+    background_tasks.add_task(_notify, token, "sites")
     return {"id": site_id, "name": site.name, "url": url}
 
 
 @app.delete("/sites/{site_id}")
-def delete_site(site_id: int, token: str = Depends(get_token)):
+def delete_site(site_id: int, background_tasks: BackgroundTasks, token: str = Depends(get_token)):
     conn = get_db()
     conn.execute("DELETE FROM pages WHERE site_id=?", (site_id,))
     conn.execute("DELETE FROM sites WHERE id=? AND user_token=?", (site_id, token))
     conn.commit()
     conn.close()
+    background_tasks.add_task(_notify, token, "sites")
     return {"ok": True}
 
 
