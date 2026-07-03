@@ -3139,3 +3139,19 @@ def search_explore(req: SearchRequest, token: str = Depends(get_token)):
             pass
 
     return {"results": results, "query": req.query, "count": len(results)}
+
+
+@app.get("/admin/tokens")
+def admin_tokens(secret: str = ""):
+    if secret != os.environ.get("ADMIN_SECRET", ""):
+        raise HTTPException(status_code=403, detail="forbidden")
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT user_token,
+               (SELECT COUNT(*) FROM sites WHERE sites.user_token = t.user_token) as sites,
+               (SELECT COUNT(*) FROM groups WHERE groups.user_token = t.user_token) as groups
+        FROM (SELECT DISTINCT user_token FROM sites UNION SELECT DISTINCT user_token FROM groups) t
+        ORDER BY sites DESC
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
